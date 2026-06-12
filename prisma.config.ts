@@ -10,6 +10,6 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   // Database connection for Prisma CLI commands (migrate, studio, etc.)
   datasource: {
-    url: env("DIRECT_DATABASE_URL", { fallback: env("DATABASE_URL") }),
+    url: env("DIRECT_DATABASE_URL") || env("DATABASE_URL"),
   },
 });
