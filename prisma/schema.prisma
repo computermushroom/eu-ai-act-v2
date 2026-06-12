@@ -1,0 +1,729 @@
+// Prisma Schema - EU AI Act Compliance Tool
+// Database: PostgreSQL
+// GDPR-compliant: minimal data collection, user data export/deletion support
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/**
+ * User account model
+ * Minimal data collection per GDPR principles
+ * Supports: account deletion, data export
+ */
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String?   // Hashed with bcryptjs, null for OAuth users
+  emailVerified DateTime?
+  image         String?   // OAuth avatar URL
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // GDPR: account deletion timestamp (soft delete)
+  deletedAt DateTime?
+
+  // Relations
+  subscription Subscription?
+  accounts     Account[]
+  sessions     Session[]
+  auditLogs    AuditLog[]
+  aiSystems    AISystem[]
+  scanTasks    ScanTask[]
+  alerts       ComplianceAlert[]
+  trainingProgress TrainingProgress[]
+  documents    ComplianceDocument[]
+  teamMemberships TeamMember[]
+  clientPortal ClientPortal?
+
+  // Indexes
+  @@index([email])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+/**
+ * NextAuth.js Account model (OAuth providers)
+ */
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+/**
+ * NextAuth.js Session model
+ */
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+/**
+ * NextAuth.js VerificationToken model
+ */
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+/**
+ * Subscription model - linked to Lemon Squeezy
+ * Tracks user's active subscription tier
+ */
+model Subscription {
+  id String @id @default(cuid())
+
+  // Relation to user
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Lemon Squeezy identifiers
+  lemonSqueezyId          String? @unique // Subscription ID from Lemon Squeezy
+  lemonSqueezyCustomerId  String? // Customer ID from Lemon Squeezy
+  lemonSqueezyVariantId   String? // Product variant ID
+  lemonSqueezyProductId   String? // Product ID
+  lemonSqueezyOrderId     String? // Order ID
+
+  // Subscription details
+  status SubscriptionStatus @default(inactive)
+  tier   SubscriptionTier   @default(free)
+
+  // Billing period
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // GDPR: cancellation timestamp
+  cancelledAt DateTime?
+
+  @@index([userId])
+  @@index([lemonSqueezyId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+/**
+ * Subscription status enum
+ */
+enum SubscriptionStatus {
+  active
+  cancelled
+  expired
+  inactive
+  past_due
+  paused
+  unpaid
+}
+
+/**
+ * Subscription tier enum
+ * Aligned with pricing page plans
+ */
+enum SubscriptionTier {
+  free
+  starter
+  professional
+  business
+  enterprise
+}
+
+/**
+ * Audit log action types
+ * Tracks all significant user actions for compliance
+ */
+enum AuditAction {
+  user_login
+  user_logout
+  user_registered
+  user_updated_profile
+  user_exported_data
+  user_deleted_account
+  subscription_created
+  subscription_updated
+  subscription_cancelled
+  payment_succeeded
+  payment_failed
+  tool_risk_assessment
+  tool_prohibited_practices
+  tool_transparency_check
+  tool_lifecycle_management
+  tool_data_governance
+  tool_qms_checklist
+  tool_fria_assessment
+  tool_shadow_ai_scan
+  tool_specialized_checks
+  report_generated
+  report_downloaded
+  alert_triggered
+  alert_resolved
+  training_completed
+  document_created
+  document_updated
+  settings_updated
+}
+
+/**
+ * Audit log model
+ * GDPR-compliant action logging for compliance and security
+ * Retention: configurable (default 2 years)
+ */
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    AuditAction
+  resource  String?  // e.g. "risk-assessment", "subscription"
+  details   String?  @db.Text // JSON string with action-specific details
+  ipAddress String?  // Hashed/anon for GDPR
+  userAgent String?  // Browser info
+  createdAt DateTime @default(now())
+
+  // Relation
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Indexes for query performance
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================================
+// AI SYSTEM MANAGEMENT (Art.9, Art.10, Art.12-15)
+// ============================================================
+
+/**
+ * AI System model
+ * Represents an AI system registered by the user for compliance tracking
+ * Supports: lifecycle management, risk tracking, documentation
+ */
+model AISystem {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?  @db.Text
+  systemType  String   // e.g. "high-risk", "limited-risk", "prohibited", "minimal"
+  status      String   @default("draft") // draft, active, deprecated, removed
+  riskLevel   String?  // unacceptable, high, limited, minimal
+  industry    String?  // marketing, ecommerce, customer-service, healthcare, finance, etc.
+
+  // EU AI Act Article compliance tracking
+  art6Compliant   Boolean @default(false)
+  art9Compliant   Boolean @default(false)
+  art10Compliant  Boolean @default(false)
+  art12Compliant  Boolean @default(false)
+  art13Compliant  Boolean @default(false)
+  art14Compliant  Boolean @default(false)
+  art15Compliant  Boolean @default(false)
+  art17Compliant  Boolean @default(false)
+  art27Compliant  Boolean @default(false)
+
+  // Lifecycle tracking
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deployedAt      DateTime?
+  lastReviewedAt  DateTime?
+  nextReviewAt    DateTime?
+
+  // Relations
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scanResults ScanResult[]
+  documents   ComplianceDocument[]
+  fria        FRIAAssessment?
+  qms         QMSChecklist?
+
+  @@index([userId])
+  @@index([status])
+  @@index([riskLevel])
+  @@map("ai_systems")
+}
+
+/**
+ * Scan Result model
+ * Stores results from automated compliance scans
+ */
+model ScanResult {
+  id          String   @id @default(cuid())
+  systemId    String
+  scanType    String   // url-scan, shadow-ai, auto-compliance
+  score       Int      // 0-100
+  status      String   // pass, fail, warning
+  findings    String?  @db.Text // JSON array of findings
+  createdAt   DateTime @default(now())
+
+  system AISystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
+
+  @@index([systemId])
+  @@index([scanType])
+  @@index([createdAt])
+  @@map("scan_results")
+}
+
+/**
+ * Scan Task model
+ * Scheduled/queued scan tasks for automation
+ */
+model ScanTask {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  targetUrl   String?
+  scanType    String   // monthly-auto, shadow-ai, compliance-check
+  frequency   String   // once, daily, weekly, monthly
+  status      String   @default("pending") // pending, running, completed, failed
+  lastRunAt   DateTime?
+  nextRunAt   DateTime?
+  results     String?  @db.Text // JSON of last results
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([nextRunAt])
+  @@map("scan_tasks")
+}
+
+// ============================================================
+// COMPLIANCE ALERTS (Business tier)
+// ============================================================
+
+/**
+ * Compliance Alert model
+ * Automated alerts for compliance changes and issues
+ */
+model ComplianceAlert {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // regulation-change, compliance-gap, scan-failure, deadline
+  severity    String   // info, warning, critical
+  title       String
+  message     String   @db.Text
+  articleRef  String?  // e.g. "Art.6", "Art.27"
+  isRead      Boolean  @default(false)
+  isResolved  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("compliance_alerts")
+}
+
+// ============================================================
+// FRIA - FUNDAMENTAL RIGHTS IMPACT ASSESSMENT (Art.27)
+// ============================================================
+
+/**
+ * FRIA Assessment model
+ * Fundamental Rights Impact Assessment for high-risk AI systems
+ */
+model FRIAAssessment {
+  id              String   @id @default(cuid())
+  systemId        String   @unique
+
+  // Assessment sections
+  section1        String?  @db.Text // System description and intended purpose
+  section2        String?  @db.Text // Legal basis and necessity
+  section3        String?  @db.Text // Risks to fundamental rights
+  section4        String?  @db.Text // Measures to mitigate risks
+  section5        String?  @db.Text // Consultation with stakeholders
+  section6        String?  @db.Text // Notification to authority
+
+  // Status
+  status          String   @default("draft") // draft, in-review, completed, submitted
+  overallScore    Int?     // 0-100
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  submittedAt     DateTime?
+
+  system AISystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
+
+  @@map("fria_assessments")
+}
+
+// ============================================================
+// QMS - QUALITY MANAGEMENT SYSTEM (Art.17)
+// ============================================================
+
+/**
+ * QMS Checklist model
+ * Quality Management System checklist for high-risk AI
+ */
+model QMSChecklist {
+  id              String   @id @default(cuid())
+  systemId        String   @unique
+
+  // Art.17 requirements
+  riskManagement      Boolean @default(false)
+  dataGovernance      Boolean @default(false)
+  technicalDoc        Boolean @default(false)
+  recordKeeping       Boolean @default(false)
+  transparency        Boolean @default(false)
+  humanOversight      Boolean @default(false)
+  accuracyRobustness  Boolean @default(false)
+  cybersecurity       Boolean @default(false)
+  qualityControl      Boolean @default(false)
+  postMarket          Boolean @default(false)
+  incidentReporting   Boolean @default(false)
+
+  // Status
+  completionRate  Int      @default(0) // 0-100
+  status          String   @default("incomplete") // incomplete, complete
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  system AISystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
+
+  @@map("qms_checklists")
+}
+
+// ============================================================
+// TRAINING MODULE (Enterprise tier)
+// ============================================================
+
+/**
+ * Training Module model
+ * Employee compliance training content
+ */
+model TrainingModule {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  content     String   @db.Text // JSON: sections with text, quizzes
+  articleRef  String?  // Related EU AI Act article
+  difficulty  String   @default("beginner") // beginner, intermediate, advanced
+  duration    Int      // Estimated minutes
+  order       Int      @default(0) // Display order
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  progress TrainingProgress[]
+
+  @@index([articleRef])
+  @@index([isActive])
+  @@map("training_modules")
+}
+
+/**
+ * Training Progress model
+ * Tracks user completion of training modules
+ */
+model TrainingProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  moduleId    String
+  status      String   @default("not-started") // not-started, in-progress, completed
+  score       Int?     // Quiz score 0-100
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module TrainingModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+  @@index([userId])
+  @@index([status])
+  @@map("training_progress")
+}
+
+// ============================================================
+// DOCUMENT MANAGEMENT
+// ============================================================
+
+/**
+ * Compliance Document model
+ * Version-controlled compliance documents
+ */
+model ComplianceDocument {
+  id          String   @id @default(cuid())
+  userId      String
+  systemId    String?
+  title       String
+  type        String   // technical-doc, fria, qms, report, policy
+  content     String   @db.Text
+  version     Int      @default(1)
+  status      String   @default("draft") // draft, review, approved, archived
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  system AISystem? @relation(fields: [systemId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([systemId])
+  @@index([type])
+  @@map("compliance_documents")
+}
+
+// ============================================================
+// TEAM COLLABORATION (Enterprise tier)
+// ============================================================
+
+/**
+ * Team Member model
+ * Multi-user team collaboration
+ */
+model TeamMember {
+  id          String   @id @default(cuid())
+  userId      String
+  teamId      String
+  role        String   @default("member") // owner, admin, member, viewer
+  permissions String[] // Array of permission strings
+  joinedAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@index([teamId])
+  @@map("team_members")
+}
+
+// ============================================================
+// WEBHOOK CONFIGURATION (Enterprise tier)
+// ============================================================
+
+/**
+ * Webhook Configuration model
+ * External API/webhook endpoints for enterprise integrations
+ */
+model WebhookConfig {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  url         String
+  secret      String   // For HMAC signature verification
+  events      String[] // e.g. ["compliance.alert", "scan.completed"]
+  isActive    Boolean  @default(true)
+  lastTriggeredAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isActive])
+  @@map("webhook_configs")
+}
+
+// ============================================================
+// WHITE-LABEL CLIENT PORTAL (Enterprise tier)
+// ============================================================
+
+/**
+ * Client Portal model
+ * White-label client portal for compliance service providers
+ * Allows MSPs, consultancies, and law firms to offer branded compliance services
+ */
+model ClientPortal {
+  id              String   @id @default(cuid())
+  userId          String   @unique // Owner of the portal (the service provider)
+
+  // Branding
+  name            String   // Portal name, e.g. "Acme Compliance Portal"
+  slug            String   @unique // URL slug, e.g. "acme-compliance"
+  logoUrl         String?  // Custom logo URL
+  faviconUrl      String?  // Custom favicon URL
+  primaryColor    String?  @default("#2563eb") // Brand primary color (hex)
+  accentColor     String?  @default("#16a34a") // Brand accent color (hex)
+  customDomain    String?  @unique // e.g. "compliance.acme.com"
+
+  // Content customization
+  welcomeTitle    String?  @default("Welcome to Your Compliance Dashboard")
+  welcomeMessage  String?  @db.Text
+  footerText      String?  @default("Powered by EU AI Act Compliance Tool")
+  contactEmail    String?
+  contactPhone    String?
+
+  // Feature toggles
+  showPricing     Boolean  @default(false)
+  showTraining    Boolean  @default(true)
+  showDocuments   Boolean  @default(true)
+  showTeam        Boolean  @default(true)
+  showAlerts      Boolean  @default(true)
+  showReports     Boolean  @default(true)
+
+  // Portal status
+  status          String   @default("active") // active, suspended, maintenance
+  isPublic        Boolean  @default(false) // If true, accessible without login
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clients Client[]
+
+  @@index([slug])
+  @@index([customDomain])
+  @@index([status])
+  @@map("client_portals")
+}
+
+/**
+ * Client model
+ * End clients managed through a white-label portal
+ * Each client has their own isolated AI systems, documents, and compliance data
+ */
+model Client {
+  id          String   @id @default(cuid())
+  portalId    String
+
+  // Client info
+  name        String
+  email       String
+  company     String?
+  industry    String?
+  phone       String?
+  address     String?  @db.Text
+
+  // Branding override (optional per-client)
+  logoUrl     String?
+  primaryColor String?
+
+  // Compliance tracking
+  subscriptionTier String @default("free") // free, starter, professional, business
+  status      String   @default("active") // active, inactive, suspended
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  portal      ClientPortal @relation(fields: [portalId], references: [id], onDelete: Cascade)
+  aiSystems   ClientAISystem[]
+  documents   ClientDocument[]
+  alerts      ClientAlert[]
+
+  @@index([portalId])
+  @@index([status])
+  @@index([email])
+  @@map("clients")
+}
+
+/**
+ * Client AI System model
+ * AI systems belonging to a white-label client
+ * Isolated from the provider's own AI systems
+ */
+model ClientAISystem {
+  id          String   @id @default(cuid())
+  clientId    String
+  name        String
+  description String?  @db.Text
+  systemType  String   // high-risk, limited-risk, prohibited, minimal
+  status      String   @default("draft")
+  riskLevel   String?
+  industry    String?
+
+  // Compliance tracking
+  art6Compliant   Boolean @default(false)
+  art9Compliant   Boolean @default(false)
+  art10Compliant  Boolean @default(false)
+  art12Compliant  Boolean @default(false)
+  art13Compliant  Boolean @default(false)
+  art14Compliant  Boolean @default(false)
+  art15Compliant  Boolean @default(false)
+  art17Compliant  Boolean @default(false)
+  art27Compliant  Boolean @default(false)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([status])
+  @@map("client_ai_systems")
+}
+
+/**
+ * Client Document model
+ * Compliance documents for white-label clients
+ */
+model ClientDocument {
+  id          String   @id @default(cuid())
+  clientId    String
+  title       String
+  type        String   // technical-doc, fria, qms, report, policy
+  content     String   @db.Text
+  version     Int      @default(1)
+  status      String   @default("draft")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([type])
+  @@map("client_documents")
+}
+
+/**
+ * Client Alert model
+ * Compliance alerts for white-label clients
+ */
+model ClientAlert {
+  id          String   @id @default(cuid())
+  clientId    String
+  type        String   // regulation-change, compliance-gap, scan-failure, deadline
+  severity    String   // info, warning, critical
+  title       String
+  message     String   @db.Text
+  articleRef  String?
+  isRead      Boolean  @default(false)
+  isResolved  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([isRead])
+  @@index([severity])
+  @@map("client_alerts")
+}

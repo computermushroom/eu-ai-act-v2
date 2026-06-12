@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" fill="none">
+  <!-- Background: rounded square with gradient -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1e40af"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <rect width="40" height="40" rx="8" fill="url(#bg)"/>
+  <!-- Shield icon representing compliance/protection -->
+  <path d="M20 7L12 11V18C12 23.5 15.3 28.6 20 30C24.7 28.6 28 23.5 28 18V11L20 7Z" fill="none" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Checkmark inside shield -->
+  <path d="M16 19L19 22L25 16" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

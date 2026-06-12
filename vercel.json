@@ -1,0 +1,76 @@
+{
+  "$schema": "https://openapi.vercel.com/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
+  "outputDirectory": ".next",
+  "regions": ["eu-west-1"],
+  "env": {
+    "NEXTAUTH_URL": {
+      "description": "Canonical URL of your application (used for OAuth callbacks)"
+    },
+    "NEXTAUTH_SECRET": {
+      "description": "Secret key for NextAuth.js session encryption"
+    },
+    "DATABASE_URL": {
+      "description": "PostgreSQL connection string (Prisma 7)"
+    },
+    "LEMONSQUEEZY_API_KEY": {
+      "description": "Lemon Squeezy API key for payment processing"
+    },
+    "LEMONSQUEEZY_STORE_ID": {
+      "description": "Lemon Squeezy store ID"
+    },
+    "LEMONSQUEEZY_WEBHOOK_SECRET": {
+      "description": "Lemon Squeezy webhook secret for signature verification"
+    },
+    "GOOGLE_CLIENT_ID": {
+      "description": "Google OAuth client ID (optional)"
+    },
+    "GOOGLE_CLIENT_SECRET": {
+      "description": "Google OAuth client secret (optional)"
+    },
+    "GITHUB_CLIENT_ID": {
+      "description": "GitHub OAuth client ID (optional)"
+    },
+    "GITHUB_CLIENT_SECRET": {
+      "description": "GitHub OAuth client secret (optional)"
+    },
+    "SMTP_HOST": {
+      "description": "SMTP server hostname for email delivery"
+    },
+    "SMTP_PORT": {
+      "description": "SMTP server port (default: 587)"
+    },
+    "SMTP_USER": {
+      "description": "SMTP authentication username"
+    },
+    "SMTP_PASSWORD": {
+      "description": "SMTP authentication password"
+    },
+    "SMTP_FROM": {
+      "description": "Sender email address"
+    }
+  },
+  "crons": [],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
+  ]
+}
