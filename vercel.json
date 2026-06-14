@@ -6,7 +6,12 @@
   "devCommand": "npm run dev",
   "outputDirectory": ".next",
   "regions": ["fra1"],
-  "crons": [],
+  "crons": [
+    {
+      "path": "/api/cron/scan-tasks",
+      "schedule": "0 */6 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
