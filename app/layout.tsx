@@ -8,6 +8,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import CookieConsent from "@/components/layout/CookieConsent";
 import ConsultationWidget from "@/components/layout/ConsultationWidget";
+import AIChatWidget from "@/components/chat/AIChatWidget";
 
 export const metadata: Metadata = {
   title: {
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
     template: "%s | EU AI Act Compliance",
   },
   description:
-    "Comprehensive SaaS platform for EU AI Act compliance assessment, risk classification, prohibited practices detection, and regulatory documentation. Supports 8 languages.",
+    "Comprehensive SaaS platform for EU AI Act compliance assessment, risk classification, prohibited practices detection, and regulatory documentation. Supports 10 languages.",
   keywords: [
     "EU AI Act",
     "AI compliance",
@@ -86,6 +87,7 @@ export default async function RootLayout({
             <Footer />
             <CookieConsent />
             <ConsultationWidget />
+            <AIChatWidget />
           </NextIntlClientProvider>
         </SessionProvider>
       </body>

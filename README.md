@@ -23,7 +23,7 @@ A comprehensive SaaS platform for EU AI Act compliance assessment, risk manageme
 - Subscription management in dashboard
 
 ### Internationalization
-- 8 languages: English, German, French, Spanish, Italian, Chinese, Japanese, Korean
+- 10 languages: English, German, French, Spanish, Italian, Chinese, Japanese, Korean, Russian, Arabic
 - Cookie-based locale switching (no URL prefix)
 
 ### GDPR Compliance
@@ -165,7 +165,7 @@ eu-ai-act-compliance-new/
 ├── hooks/
 │   ├── useAuth.ts         # Authentication hook
 │   └── useTool.ts         # Tool management hook
-├── i18n/                  # Translation files (8 languages)
+├── i18n/                  # Translation files (10 languages)
 ├── lib/
 │   ├── auth.ts            # NextAuth configuration
 │   ├── auth-guard.ts      # Route protection

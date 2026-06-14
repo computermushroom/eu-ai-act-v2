@@ -21,6 +21,8 @@ const LOCALES: { code: SupportedLocale; label: string }[] = [
   { code: "zh", label: "中文" },
   { code: "ja", label: "日本語" },
   { code: "ko", label: "한국어" },
+  { code: "ru", label: "RU" },
+  { code: "ar", label: "AR" },
 ];
 
 /**

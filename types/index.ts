@@ -16,7 +16,7 @@ export interface SubscriptionPlan {
 export type UserRole = "owner" | "admin" | "member" | "viewer";
 
 // Supported locales for i18n
-export type SupportedLocale = "en" | "de" | "fr" | "es" | "it" | "zh" | "ja" | "ko";
+export type SupportedLocale = "en" | "de" | "fr" | "es" | "it" | "zh" | "ja" | "ko" | "ru" | "ar";
 
 // AI risk level per EU AI Act classification
 export type AIRiskLevel = "unacceptable" | "high" | "limited" | "minimal" | "unknown";

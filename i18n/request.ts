@@ -9,7 +9,7 @@ import type { SupportedLocale } from "@/types";
 /**
  * Supported locales for the application
  */
-const SUPPORTED_LOCALES: SupportedLocale[] = ["en", "de", "fr", "es", "it", "zh", "ja", "ko"];
+const SUPPORTED_LOCALES: SupportedLocale[] = ["en", "de", "fr", "es", "it", "zh", "ja", "ko", "ru", "ar"];
 const DEFAULT_LOCALE: SupportedLocale = "en";
 
 export default getRequestConfig(async () => {
