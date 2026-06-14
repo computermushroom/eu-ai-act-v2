@@ -14,7 +14,8 @@ function createPrismaClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
-    throw new Error("DATABASE_URL is not defined in environment variables");
+    // Return a minimal client for build-time (no DB access needed during static generation)
+    return new PrismaClient() as PrismaClient;
   }
 
   // PrismaNeon accepts { connectionString } directly per official docs
