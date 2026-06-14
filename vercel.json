@@ -5,7 +5,6 @@
   "installCommand": "npm install",
   "devCommand": "npm run dev",
   "outputDirectory": ".next",
-  "regions": ["fra1"],
   "crons": [
     {
       "path": "/api/cron/scan-tasks",
