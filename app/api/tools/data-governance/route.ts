@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
+import { requireTier } from "@/lib/subscription-guard";
 
 /**
  * Data governance question definition
@@ -104,6 +105,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const tierCheck = await requireTier('professional')(request);
+  if (tierCheck) return tierCheck;
+
   try {
     const { searchParams } = new URL(request.url);
     const systemId = searchParams.get("systemId");
@@ -168,6 +172,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('professional')(request);
+  if (tierCheck) return tierCheck;
 
   try {
     const body = await request.json();

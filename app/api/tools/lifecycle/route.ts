@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
+import { requireTier } from "@/lib/subscription-guard";
 
 /**
  * Lifecycle phases supported by this tool
@@ -183,6 +184,9 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const tierCheck = await requireTier('professional')({} as NextRequest);
+  if (tierCheck) return tierCheck;
+
   try {
     const systems = await prisma.aISystem.findMany({
       where: { userId: session.user.id, status: { not: "removed" } },
@@ -267,6 +271,9 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('professional')(request);
+  if (tierCheck) return tierCheck;
 
   try {
     const body = await request.json();
@@ -358,6 +365,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('professional')(request);
+  if (tierCheck) return tierCheck;
 
   try {
     const body = await request.json();

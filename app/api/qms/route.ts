@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
+import { requireTier } from "@/lib/subscription-guard";
 
 /**
  * GET /api/qms?systemId=...
@@ -17,6 +18,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('business')(request);
+  if (tierCheck) return tierCheck;
 
   try {
     const { searchParams } = new URL(request.url);
@@ -84,6 +88,9 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('business')(request);
+  if (tierCheck) return tierCheck;
 
   try {
     const body = await request.json();

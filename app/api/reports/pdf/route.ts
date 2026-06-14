@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createRateLimiter } from "@/lib/rate-limit";
+import { requireTier } from "@/lib/subscription-guard";
 
 const reportSchema = z.object({
   systemId: z.string().min(1, "System ID is required"),
@@ -33,6 +34,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('professional')(request);
+  if (tierCheck) return tierCheck;
 
   // Rate limit check
   const rateLimit = limiter(request);

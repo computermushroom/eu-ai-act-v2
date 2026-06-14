@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { scanUrl } from "@/lib/url-scanner";
 import { createAuditLog } from "@/lib/audit";
 import { createRateLimiter } from "@/lib/rate-limit";
+import { requireTier } from "@/lib/subscription-guard";
 
 const urlScanSchema = z.object({
   url: z.string().url("Invalid URL format").max(2048, "URL too long"),
@@ -25,6 +26,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('free')(request);
+  if (tierCheck) return tierCheck;
 
   // Rate limit check
   const rateLimit = limiter(request);

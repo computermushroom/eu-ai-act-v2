@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { scanShadowAI } from "@/lib/shadow-ai-scanner";
 import { createAuditLog } from "@/lib/audit";
 import { createRateLimiter } from "@/lib/rate-limit";
+import { requireTier } from "@/lib/subscription-guard";
 
 const shadowAISchema = z.object({
   organization: z.string().min(1, "Organization name is required").max(200, "Organization name too long"),
@@ -26,6 +27,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('business')(request);
+  if (tierCheck) return tierCheck;
 
   // Rate limit check
   const rateLimit = limiter(request);

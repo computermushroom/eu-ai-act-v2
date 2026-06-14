@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
+import { requireTier } from "@/lib/subscription-guard";
 
 const VALID_EVENTS = [
   "compliance.alert",
@@ -37,6 +38,9 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const tierCheck = await requireTier('enterprise')({} as NextRequest);
+  if (tierCheck) return tierCheck;
+
   try {
     const webhooks = await prisma.webhookConfig.findMany({
       where: { userId: session.user.id },
@@ -63,6 +67,9 @@ export async function POST(request: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('enterprise')(request);
+  if (tierCheck) return tierCheck;
 
   try {
     const body = await request.json();
@@ -140,6 +147,9 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const tierCheck = await requireTier('enterprise')(request);
+  if (tierCheck) return tierCheck;
+
   try {
     const body = await request.json();
     const { id, isActive } = body as { id?: string; isActive?: boolean };
@@ -202,6 +212,9 @@ export async function DELETE(request: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('enterprise')(request);
+  if (tierCheck) return tierCheck;
 
   try {
     const { searchParams } = new URL(request.url);

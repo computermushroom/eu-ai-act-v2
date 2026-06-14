@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
+import { requireTier } from "@/lib/subscription-guard";
 
 /**
  * GET /api/portal
@@ -17,6 +18,9 @@ export async function GET() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('enterprise')({} as NextRequest);
+  if (tierCheck) return tierCheck;
 
   try {
     const portal = await prisma.clientPortal.findUnique({
@@ -43,6 +47,9 @@ export async function POST(request: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('enterprise')(request);
+  if (tierCheck) return tierCheck;
 
   try {
     const body = await request.json();
@@ -191,6 +198,9 @@ export async function DELETE() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('enterprise')({} as NextRequest);
+  if (tierCheck) return tierCheck;
 
   try {
     const existing = await prisma.clientPortal.findUnique({

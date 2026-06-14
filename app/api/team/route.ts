@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
+import { requireTier } from "@/lib/subscription-guard";
 
 const VALID_ROLES = ["owner", "admin", "member", "viewer"] as const;
 
@@ -19,6 +20,9 @@ export async function GET() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('enterprise')({} as NextRequest);
+  if (tierCheck) return tierCheck;
 
   try {
     // Use user's own ID as team identifier (each user is their own team owner initially)
@@ -54,6 +58,9 @@ export async function POST(request: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('enterprise')(request);
+  if (tierCheck) return tierCheck;
 
   try {
     const body = await request.json();
@@ -158,6 +165,9 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const tierCheck = await requireTier('enterprise')(request);
+  if (tierCheck) return tierCheck;
+
   try {
     const body = await request.json();
     const { userId, role } = body as { userId?: string; role?: string };
@@ -237,6 +247,9 @@ export async function DELETE(request: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const tierCheck = await requireTier('enterprise')(request);
+  if (tierCheck) return tierCheck;
 
   try {
     const { searchParams } = new URL(request.url);
