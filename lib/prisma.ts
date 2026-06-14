@@ -14,8 +14,7 @@ function createPrismaClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
-    // Return a minimal client for build-time (no DB access needed during static generation)
-    return new PrismaClient() as PrismaClient;
+    throw new Error("DATABASE_URL is not defined in environment variables");
   }
 
   // PrismaNeon accepts { connectionString } directly per official docs
@@ -24,8 +23,26 @@ function createPrismaClient(): PrismaClient {
   return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+function getPrismaClient(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient();
+  }
+  return globalForPrisma.prisma;
+}
+
+// Lazy initialization: the client is only created when first accessed
+// This prevents build-time errors when DATABASE_URL is not set during static generation
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_, prop: string | symbol) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client, prop);
+    if (typeof value === "function") {
+      return value.bind(client);
+    }
+    return value;
+  },
+});
 
 if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+  globalForPrisma.prisma = globalForPrisma.prisma;
 }
