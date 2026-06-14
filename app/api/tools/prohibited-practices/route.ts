@@ -230,7 +230,7 @@ const PROHIBITED_PRACTICES: ProhibitedPractice[] = [
             ]
           : [],
         mitigation: isApplicable
-          => [
+          ? [
               "Do not deploy real-time biometric identification in public spaces",
               "If law enforcement use: ensure strict Art.5(1)(d) exception criteria are met",
               "Obtain prior judicial authorization for any exception-based use",
@@ -272,7 +272,7 @@ const PROHIBITED_PRACTICES: ProhibitedPractice[] = [
             ]
           : [],
         mitigation: isApplicable
-          => [
+          ? [
               "Ensure risk assessments are based on objective, verifiable facts",
               "Do not rely solely on profiling or personality traits",
               "Include direct evidence linked to the specific criminal activity",
@@ -357,7 +357,7 @@ const PROHIBITED_PRACTICES: ProhibitedPractice[] = [
             ]
           : [],
         mitigation: isApplicable
-          => [
+          ? [
               "Do not scrape facial images from the internet without targeted, lawful basis",
               "Do not use CCTV footage to create facial recognition databases",
               "Ensure all training data for facial recognition is lawfully obtained with consent",
@@ -367,6 +367,7 @@ const PROHIBITED_PRACTICES: ProhibitedPractice[] = [
           : [],
       };
     },
+  },
   {
     id: "predictive-policing",
     name: "Predictive Policing Based Solely on Profiling",
@@ -398,7 +399,7 @@ const PROHIBITED_PRACTICES: ProhibitedPractice[] = [
             ]
           : [],
         mitigation: isApplicable
-          => [
+          ? [
               "Base crime predictions on objective, verifiable data, not solely profiling",
               "Include human oversight and review in all predictive policing outputs",
               "Ensure predictions do not lead to discriminatory outcomes",
@@ -408,6 +409,7 @@ const PROHIBITED_PRACTICES: ProhibitedPractice[] = [
           : [],
       };
     },
+  },
   {
     id: "behavior-manipulation-freewill",
     name: "AI Systems that Manipulate Behavior to Circumvent Free Will",
@@ -439,7 +441,7 @@ const PROHIBITED_PRACTICES: ProhibitedPractice[] = [
             ]
           : [],
         mitigation: isApplicable
-          => [
+          ? [
               "Remove dark patterns and coercive design elements",
               "Ensure users maintain genuine choice and agency",
               "Implement transparent disclosure of all persuasive elements",
@@ -449,7 +451,8 @@ const PROHIBITED_PRACTICES: ProhibitedPractice[] = [
           : [],
       };
     },
-};
+  },
+];
 
 // ============================================================
 // API Route Handlers

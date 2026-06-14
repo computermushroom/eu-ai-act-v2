@@ -27,26 +27,10 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));
 
-// Mock next-intl
+// Mock next-intl (main package exports)
 vi.mock("next-intl", () => ({
   useTranslations: vi.fn(() => (key: string) => key),
   useLocale: vi.fn(() => "en"),
-}));
-
-// Mock next-intl/react
-vi.mock("next-intl/react", () => ({
-  useTranslations: vi.fn(() => (key: string) => key),
-  useLocale: vi.fn(() => "en"),
-}));
-
-// Mock next-intl/navigation
-vi.mock("next-intl/navigation", () => ({
-  useRouter: vi.fn(() => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    refresh: vi.fn(),
-  })),
-  usePathname: vi.fn(() => "/"),
 }));
 
 // Mock @/lib/auth
