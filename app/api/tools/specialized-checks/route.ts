@@ -91,8 +91,10 @@ async function checkArt12(
     score += 0;
   } else {
     const latestScan = scanResults[0];
-    findings.push(`Found ${scanResults.length} scan result(s). Most recent scan scored ${latestScan.score}/100 (${latestScan.status}) on ${latestScan.createdAt.toISOString().split("T")[0]}.`);
-    score += 20;
+    if (latestScan) {
+      findings.push(`Found ${scanResults.length} scan result(s). Most recent scan scored ${latestScan.score}/100 (${latestScan.status}) on ${latestScan.createdAt.toISOString().split("T")[0]}.`);
+      score += 20;
+    }
   }
 
   // 4. Document quality assessment (based on content richness)
@@ -477,7 +479,7 @@ async function checkArt15(systemId: string): Promise<ArticleCheckResult> {
     const avgScore = Math.round(
       scanResults.reduce((sum, scan) => sum + scan.score, 0) / scanResults.length
     );
-    const latestScore = scanResults[0].score;
+    const latestScore = scanResults[0]?.score ?? 0;
 
     if (avgScore >= 80) {
       findings.push(`Scan results indicate strong performance: average score ${avgScore}/100 across ${scanResults.length} scan(s). Latest scan: ${latestScore}/100. This supports Art.15 accuracy and robustness requirements.`);

@@ -89,7 +89,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Generate real PDF using @react-pdf/renderer
     const pdfDocument = <ComplianceReportDocument data={reportData} />;
-    const pdfBuffer = await pdf(pdfDocument).toBuffer();
+    const pdfNodeStream = await pdf(pdfDocument).toBuffer();
+    // Convert NodeJS.ReadableStream to Buffer
+    const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      pdfNodeStream.on("data", (chunk: Buffer) => chunks.push(chunk));
+      pdfNodeStream.on("end", () => resolve(Buffer.concat(chunks)));
+      pdfNodeStream.on("error", reject);
+    });
 
     // Audit log
     await createAuditLog({
@@ -103,7 +110,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const filename = `EU-AI-Act-Report-${system.name.replace(/\s+/g, "-")}-${type}-${new Date().toISOString().split("T")[0]}.pdf`;
 
     // Return real PDF binary
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(pdfBuffer as unknown as BodyInit, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
@@ -218,7 +225,7 @@ function buildReportData(
     {
       art: "Art.6",
       title: "Risk Classification",
-      description: ARTICLE_DESCRIPTIONS["Art.6"].description,
+      description: ARTICLE_DESCRIPTIONS["Art.6"]?.description || "Risk classification according to EU AI Act Article 6",
       compliant: system.art6Compliant,
       details: system.art6Compliant
         ? "System risk classification is properly documented and aligned with Art.6 criteria."
@@ -227,7 +234,7 @@ function buildReportData(
     {
       art: "Art.9",
       title: "Risk Management",
-      description: ARTICLE_DESCRIPTIONS["Art.9"].description,
+      description: ARTICLE_DESCRIPTIONS["Art.9"]?.description || "",
       compliant: system.art9Compliant,
       details: system.art9Compliant
         ? "Risk management system is established and operational per Art.9 requirements."
@@ -236,7 +243,7 @@ function buildReportData(
     {
       art: "Art.10",
       title: "Data Governance",
-      description: ARTICLE_DESCRIPTIONS["Art.10"].description,
+      description: ARTICLE_DESCRIPTIONS["Art.10"]?.description || "",
       compliant: system.art10Compliant,
       details: system.art10Compliant
         ? "Data governance practices meet Art.10 requirements for training, validation, and testing data."
@@ -245,7 +252,7 @@ function buildReportData(
     {
       art: "Art.12",
       title: "Record Keeping",
-      description: ARTICLE_DESCRIPTIONS["Art.12"].description,
+      description: ARTICLE_DESCRIPTIONS["Art.12"]?.description || "",
       compliant: system.art12Compliant,
       details: system.art12Compliant
         ? "Automatic logging and record keeping mechanisms are in place as required by Art.12."
@@ -254,7 +261,7 @@ function buildReportData(
     {
       art: "Art.13",
       title: "Transparency",
-      description: ARTICLE_DESCRIPTIONS["Art.13"].description,
+      description: ARTICLE_DESCRIPTIONS["Art.13"]?.description || "",
       compliant: system.art13Compliant,
       details: system.art13Compliant
         ? "System transparency requirements under Art.13 are satisfied."
@@ -263,7 +270,7 @@ function buildReportData(
     {
       art: "Art.14",
       title: "Human Oversight",
-      description: ARTICLE_DESCRIPTIONS["Art.14"].description,
+      description: ARTICLE_DESCRIPTIONS["Art.14"]?.description || "",
       compliant: system.art14Compliant,
       details: system.art14Compliant
         ? "Human oversight mechanisms are properly designed and implemented per Art.14."
@@ -272,7 +279,7 @@ function buildReportData(
     {
       art: "Art.15",
       title: "Accuracy",
-      description: ARTICLE_DESCRIPTIONS["Art.15"].description,
+      description: ARTICLE_DESCRIPTIONS["Art.15"]?.description || "",
       compliant: system.art15Compliant,
       details: system.art15Compliant
         ? "Accuracy, robustness, and cybersecurity requirements of Art.15 are met."
@@ -281,7 +288,7 @@ function buildReportData(
     {
       art: "Art.17",
       title: "Quality Management System",
-      description: ARTICLE_DESCRIPTIONS["Art.17"].description,
+      description: ARTICLE_DESCRIPTIONS["Art.17"]?.description || "",
       compliant: system.art17Compliant,
       details: system.art17Compliant
         ? "Quality management system is established and meets Art.17 requirements."
@@ -290,7 +297,7 @@ function buildReportData(
     {
       art: "Art.27",
       title: "Fundamental Rights Impact Assessment",
-      description: ARTICLE_DESCRIPTIONS["Art.27"].description,
+      description: ARTICLE_DESCRIPTIONS["Art.27"]?.description || "",
       compliant: system.art27Compliant,
       details: system.art27Compliant
         ? "Fundamental rights impact assessment has been conducted as required by Art.27."
@@ -299,22 +306,22 @@ function buildReportData(
   ];
 
   // Filter compliance items based on report type
-  let filteredItems = complianceItems;
+  let filteredItems: ComplianceItem[] = complianceItems;
   switch (reportType) {
     case "risk-assessment":
       filteredItems = [
         complianceItems[0], // Art.6
         complianceItems[1], // Art.9
-      ];
+      ].filter(Boolean) as ComplianceItem[];
       break;
     case "fria":
-      filteredItems = [complianceItems[8]]; // Art.27
+      filteredItems = [complianceItems[8]].filter(Boolean) as ComplianceItem[]; // Art.27
       break;
     case "qms":
-      filteredItems = [complianceItems[7]]; // Art.17
+      filteredItems = [complianceItems[7]].filter(Boolean) as ComplianceItem[]; // Art.17
       break;
     case "data-governance":
-      filteredItems = [complianceItems[2]]; // Art.10
+      filteredItems = [complianceItems[2]].filter(Boolean) as ComplianceItem[]; // Art.10
       break;
     // compliance-summary uses all items
   }

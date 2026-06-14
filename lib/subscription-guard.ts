@@ -86,7 +86,7 @@ export type LimitType = keyof typeof TIER_LIMITS.free;
  * @returns A middleware function that returns a NextResponse on failure, or null on success
  */
 export function requireTier(minTier: string) {
-  return async (request: NextRequest): Promise<NextResponse | null> => {
+  return async (_request: NextRequest): Promise<NextResponse | null> => {
     // 1. Authenticate the user
     const session = await auth();
     if (!session?.user?.id) {

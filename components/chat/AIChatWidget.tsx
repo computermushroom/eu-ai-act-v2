@@ -142,7 +142,7 @@ export default function AIChatWidget() {
         {
           id: `welcome-${Date.now()}`,
           role: "assistant",
-          content: WELCOME_MESSAGES[chatLanguage] || WELCOME_MESSAGES["en"],
+          content: (WELCOME_MESSAGES[chatLanguage as keyof typeof WELCOME_MESSAGES] || WELCOME_MESSAGES["en"]) as string,
         },
       ]);
     }
@@ -172,7 +172,7 @@ export default function AIChatWidget() {
         {
           id: `welcome-${Date.now()}`,
           role: "assistant",
-          content: WELCOME_MESSAGES[lang] || WELCOME_MESSAGES["en"],
+          content: (WELCOME_MESSAGES[lang as keyof typeof WELCOME_MESSAGES] || WELCOME_MESSAGES["en"]) as string,
         },
       ]);
     }
@@ -211,14 +211,14 @@ export default function AIChatWidget() {
         const assistantMessage: ChatMessage = {
           id: `assistant-${Date.now()}`,
           role: "assistant",
-          content: data.response || ERROR_MESSAGES[chatLanguage] || ERROR_MESSAGES["en"],
+          content: data.response || ERROR_MESSAGES[chatLanguage as keyof typeof ERROR_MESSAGES] || ERROR_MESSAGES["en"],
         };
         setMessages((prev) => [...prev, assistantMessage]);
       } catch {
         const assistantMessage: ChatMessage = {
           id: `assistant-${Date.now()}`,
           role: "assistant",
-          content: ERROR_MESSAGES[chatLanguage] || ERROR_MESSAGES["en"],
+          content: (ERROR_MESSAGES[chatLanguage as keyof typeof ERROR_MESSAGES] ?? ERROR_MESSAGES["en"])!,
         };
         setMessages((prev) => [...prev, assistantMessage]);
       } finally {
@@ -236,7 +236,7 @@ export default function AIChatWidget() {
       <button
         onClick={() => setIsOpen((prev) => !prev)}
         className="pointer-events-auto fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-        aria-label={isOpen ? (CLOSE_LABELS[chatLanguage] || "Close") : "Open chat"}
+        aria-label={isOpen ? (CLOSE_LABELS[chatLanguage as keyof typeof CLOSE_LABELS] || "Close") : "Open chat"}
       >
         {isOpen ? (
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -315,7 +315,7 @@ export default function AIChatWidget() {
             <button
               onClick={() => setIsOpen(false)}
               className="flex h-7 w-7 items-center justify-center rounded-md text-white/80 transition-colors hover:bg-white/20 hover:text-white"
-              aria-label={CLOSE_LABELS[chatLanguage] || "Close"}
+              aria-label={CLOSE_LABELS[chatLanguage as keyof typeof CLOSE_LABELS] || "Close"}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -396,7 +396,7 @@ export default function AIChatWidget() {
             onClick={() => handleSend()}
             disabled={!input.trim() || isTyping}
             className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white transition-all hover:bg-blue-700 hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-sm"
-            aria-label={SEND_LABELS[chatLanguage] || "Send"}
+            aria-label={SEND_LABELS[chatLanguage as keyof typeof SEND_LABELS] || "Send"}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13" />

@@ -48,8 +48,6 @@ const prohibitedPracticesSchema = z.object({
     .max(VALID_PRACTICE_IDS.length),
 });
 
-type ProhibitedPracticesInput = z.infer<typeof prohibitedPracticesSchema>;
-
 // ============================================================
 // Art.5 Prohibited Practice Definitions
 // ============================================================
@@ -121,7 +119,7 @@ const PROHIBITED_PRACTICES: ProhibitedPractice[] = [
     description:
       "AI systems that exploit vulnerabilities of specific groups of persons due to their age, disability, or social or economic situation to materially distort their behavior in a manner that causes or is likely to cause significant harm.",
     legalReference: "Art.5(1)(b)",
-    evaluate: (systemType, description) => {
+    evaluate: (_systemType, description) => {
       const desc = description.toLowerCase();
       const isApplicable =
         (desc.includes("vulnerable") ||

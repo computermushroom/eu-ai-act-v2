@@ -9,7 +9,6 @@ import {
   Text,
   View,
   StyleSheet,
-  Link,
 } from "@react-pdf/renderer";
 
 // ─── Color Palette ───────────────────────────────────────────────
@@ -235,7 +234,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     backgroundColor: COLORS.borderLight,
     borderRadius: 2,
-    marginBottom: 3,
   },
   infoLabel: {
     fontSize: 9,

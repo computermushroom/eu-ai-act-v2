@@ -33,7 +33,7 @@ export default function AIAssistantPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [_error, setError] = useState<string | null>(null);
   const [systems, setSystems] = useState<AISystem[]>([]);
   const [selectedSystemId, setSelectedSystemId] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);

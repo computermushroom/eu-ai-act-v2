@@ -329,7 +329,7 @@ function parseRequirementsTxt(content: string): string[] {
     // Extract package name before version specifiers
     const match = trimmed.match(/^([a-zA-Z0-9_-]+)/);
     if (match) {
-      packages.push(match[1].toLowerCase());
+      packages.push(match[1]!.toLowerCase());
     }
   }
   return packages;

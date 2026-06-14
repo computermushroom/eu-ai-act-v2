@@ -1231,7 +1231,7 @@ function generateDynamicContent(system: SystemWithRelations, analysis: Complianc
           },
           {
             title: "4. Gap Analysis",
-            content: `Identified compliance gaps:\n${analysis.gaps.filter((g) => !g.compliant).map((g) => `- ${g.article} (${g.label}): ${g.severity.toUpperCase()} severity`).join("\n") || "No gaps identified - all tracked articles are compliant."}\n\nPriority ranking:\n${analysis.gaps.filter((g) => !g.compliant).sort((a, b) => (a.severity === "critical" ? -1 : 1)).map((g) => `- [${g.severity.toUpperCase()}] ${g.label} (${g.article})`).join("\n") || "None"}`,
+            content: `Identified compliance gaps:\n${analysis.gaps.filter((g) => !g.compliant).map((g) => `- ${g.article} (${g.label}): ${g.severity.toUpperCase()} severity`).join("\n") || "No gaps identified - all tracked articles are compliant."}\n\nPriority ranking:\n${analysis.gaps.filter((g) => !g.compliant).sort((a) => (a.severity === "critical" ? -1 : 1)).map((g) => `- [${g.severity.toUpperCase()}] ${g.label} (${g.article})`).join("\n") || "None"}`,
           },
           {
             title: "5. Scan Results Summary",
@@ -1775,9 +1775,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const generated: string[] = [];
     const userId = session.user.id;
 
-    // Pre-compute compliance analysis once for efficiency
-    const analysis = analyzeSystemCompliance(system as SystemWithRelations);
-
     // Generate each item
     for (const item of itemsToGenerate) {
       try {
@@ -1936,7 +1933,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               // Calculate realistic QMS completion based on system risk level and existing compliance flags
               const riskLevel = (system.riskLevel || "").toLowerCase();
               const isHighRisk = riskLevel === "high";
-              const isLimitedRisk = riskLevel === "limited";
 
               // Base completion: high-risk systems get more items checked by default
               const riskManagement = isHighRisk || system.art9Compliant;

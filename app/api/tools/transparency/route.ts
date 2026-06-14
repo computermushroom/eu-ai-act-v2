@@ -120,7 +120,7 @@ const TRANSPARENCY_CHECKS: TransparencyCheck[] = [
       "Deployers of high-risk AI systems must inform affected persons about the use of the AI system, its intended purpose, and the categories of personal data processed.",
     requirement:
       "Provide clear information about what the AI system does, its intended purpose, its capabilities, and its limitations to all affected users.",
-    evaluate: (current, systemType, riskLevel) => {
+    evaluate: (current, _systemType, riskLevel) => {
       if (current.hasUserInformation) {
         return {
           status: "compliant",
@@ -152,7 +152,7 @@ const TRANSPARENCY_CHECKS: TransparencyCheck[] = [
       "Deployers of high-risk AI systems must provide affected persons with the right to contest the AI system's output and request human review.",
     requirement:
       "Implement a clear, accessible opt-out or contestation mechanism allowing users to request human review of AI-driven decisions.",
-    evaluate: (current, systemType, riskLevel) => {
+    evaluate: (current, _systemType, riskLevel) => {
       if (current.hasOptOut) {
         return {
           status: "compliant",
@@ -184,7 +184,7 @@ const TRANSPARENCY_CHECKS: TransparencyCheck[] = [
       "High-risk AI systems must be designed to allow effective oversight by natural persons during the period of use, and users must be informed about the oversight mechanisms.",
     requirement:
       "Document and communicate the human oversight measures in place, including who oversees the system, how oversight is conducted, and how users can escalate to a human.",
-    evaluate: (current, systemType, riskLevel) => {
+    evaluate: (current, _systemType, riskLevel) => {
       if (current.hasHumanContact) {
         return {
           status: "compliant",
@@ -216,7 +216,7 @@ const TRANSPARENCY_CHECKS: TransparencyCheck[] = [
       "Deployers of high-risk AI systems must inform affected persons about the logic involved in the AI system's decision-making, the significance and envisaged consequences, and the factors that led to the decision.",
     requirement:
       "Provide a clear explanation of how the AI system makes decisions, what factors influence its outputs, and what the potential consequences are for affected persons.",
-    evaluate: (current, systemType, riskLevel) => {
+    evaluate: (current, _systemType, riskLevel) => {
       if (current.hasImpactInfo) {
         return {
           status: "compliant",
@@ -248,7 +248,7 @@ const TRANSPARENCY_CHECKS: TransparencyCheck[] = [
       "Deployers of high-risk AI systems must inform affected persons about the categories of personal data being processed and the extent to which the system's output is based on personal data.",
     requirement:
       "Clearly disclose what personal data is collected, how it is processed, how long it is retained, and how it influences the AI system's outputs.",
-    evaluate: (current, systemType, riskLevel) => {
+    evaluate: (current, _systemType, riskLevel) => {
       if (current.hasDataHandling) {
         return {
           status: "compliant",
@@ -280,7 +280,7 @@ const TRANSPARENCY_CHECKS: TransparencyCheck[] = [
       "High-risk AI systems must be designed to enable the automatic logging of events relevant to identifying high-risk situations, and deployers must retain logs for an appropriate period.",
     requirement:
       "Document the logging and monitoring practices in place, including what events are logged, retention periods, and how logs are used for oversight.",
-    evaluate: (current, systemType, riskLevel) => {
+    evaluate: (current, _systemType, riskLevel) => {
       if (current.hasLoggingPolicy) {
         return {
           status: "compliant",
@@ -312,7 +312,7 @@ const TRANSPARENCY_CHECKS: TransparencyCheck[] = [
       "Deployers of high-risk AI systems must ensure that affected persons have the right to receive a meaningful explanation of the AI system's decisions and the factors that influenced them.",
     requirement:
       "Provide a mechanism for users to request and receive a clear, meaningful explanation of AI-driven decisions that affect them.",
-    evaluate: (current, systemType, riskLevel) => {
+    evaluate: (current, _systemType, riskLevel) => {
       if (current.hasRightToExplanation) {
         return {
           status: "compliant",
@@ -344,7 +344,7 @@ const TRANSPARENCY_CHECKS: TransparencyCheck[] = [
       "Transparency information provided to affected persons must be accessible, clear, and easy to understand, taking into account the needs of vulnerable groups.",
     requirement:
       "Ensure all transparency disclosures are written in plain language, are accessible to persons with disabilities, and account for the needs of vulnerable populations.",
-    evaluate: (current, systemType, riskLevel) => {
+    evaluate: (current, _systemType, riskLevel) => {
       if (current.hasAccessibility) {
         return {
           status: "compliant",
@@ -376,7 +376,7 @@ const TRANSPARENCY_CHECKS: TransparencyCheck[] = [
       "Where applicable, transparency information should be provided in the official languages of the Member States where the AI system is made available.",
     requirement:
       "Provide transparency disclosures in the languages of all EU Member States where the system is available, or at minimum in English and the primary language of each market.",
-    evaluate: (current, systemType, riskLevel) => {
+    evaluate: (current, _systemType, riskLevel) => {
       if (current.hasMultilingual) {
         return {
           status: "compliant",
