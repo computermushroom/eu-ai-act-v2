@@ -1,16 +1,18 @@
 // Subscription Checkout API
-// POST: Creates a Lemon Squeezy checkout URL for the selected tier
+// POST: Creates a checkout URL for the selected tier via the active payment gateway
 // Rate-limited to 10 requests/minute per IP
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { createSubscriptionCheckout } from "@/lib/lemonsqueezy";
+import { getPaymentGateway } from "@/lib/payment";
+import type { PaymentTier, BillingCycle } from "@/lib/payment/types";
 import { createAuditLog } from "@/lib/audit";
 import { createRateLimiter } from "@/lib/rate-limit";
 
 const checkoutSchema = z.object({
   tier: z.enum(["starter", "professional", "business", "enterprise"]),
+  billingCycle: z.enum(["monthly", "yearly"]).optional().default("monthly"),
 });
 
 const limiter = createRateLimiter("auth");
@@ -35,6 +37,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // Check if payment gateway is configured
+  const gateway = getPaymentGateway();
+  if (!gateway.isConfigured) {
+    return NextResponse.json(
+      { error: "Payment gateway is not configured. Please contact support." },
+      { status: 503 }
+    );
+  }
+
   try {
     const body = await request.json();
     const parsed = checkoutSchema.safeParse(body);
@@ -44,24 +55,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: errors }, { status: 400 });
     }
 
-    const { tier } = parsed.data;
+    const { tier, billingCycle } = parsed.data;
 
     const redirectUrl = `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/dashboard`;
 
-    const checkoutUrl = await createSubscriptionCheckout(
-      tier,
-      session.user.email,
-      redirectUrl
-    );
+    const checkoutResult = await gateway.createCheckout({
+      tier: tier as PaymentTier,
+      billingCycle: billingCycle as BillingCycle,
+      userEmail: session.user.email,
+      userId: session.user.id,
+      redirectUrl,
+    });
 
     await createAuditLog({
       userId: session.user.id,
       action: "subscription_created",
       resource: "subscription",
-      details: { tier, checkoutUrl },
+      details: { tier, billingCycle, checkoutUrl: checkoutResult.checkoutUrl },
     });
 
-    return NextResponse.json({ checkoutUrl });
+    return NextResponse.json({ checkoutUrl: checkoutResult.checkoutUrl });
   } catch (error) {
     console.error("[CHECKOUT API] Error:", error);
     const message =

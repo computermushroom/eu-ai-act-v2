@@ -316,14 +316,14 @@ export default function SettingsPage() {
               <div>
                 <p className="text-sm font-medium">Payment Method</p>
                 <p className="text-sm text-muted-foreground">
-                  Manage your payment details via Lemon Squeezy
+                  Manage your payment details via your payment provider
                 </p>
               </div>
               <button
                 type="button"
                 disabled
                 className="inline-flex h-8 items-center justify-center rounded-md border border-border px-3 text-sm font-medium opacity-50"
-                title="Payment management is handled via Lemon Squeezy billing portal"
+                title="Payment management is handled via your payment provider billing portal"
               >
                 Update
               </button>

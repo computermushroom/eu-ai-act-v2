@@ -9,9 +9,9 @@ vi.mock("@/lib/auth", () => ({
   ),
 }));
 
-vi.mock("@/lib/lemonsqueezy", () => ({
+vi.mock("@/lib/payment", () => ({
   createSubscriptionCheckout: vi.fn((tier: string) =>
-    Promise.resolve(`https://checkout.lemonsqueezy.com/${tier}`)
+    Promise.resolve(`https://checkout.creem.io/${tier}`)
   ),
 }));
 
@@ -39,7 +39,7 @@ describe("POST /api/subscription/checkout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.checkoutUrl).toBe("https://checkout.lemonsqueezy.com/starter");
+    expect(data.checkoutUrl).toBe("https://checkout.creem.io/starter");
   });
 
   it("should create checkout URL for professional tier", async () => {
@@ -49,7 +49,7 @@ describe("POST /api/subscription/checkout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.checkoutUrl).toBe("https://checkout.lemonsqueezy.com/professional");
+    expect(data.checkoutUrl).toBe("https://checkout.creem.io/professional");
   });
 
   it("should create checkout URL for business tier", async () => {
@@ -59,7 +59,7 @@ describe("POST /api/subscription/checkout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.checkoutUrl).toBe("https://checkout.lemonsqueezy.com/business");
+    expect(data.checkoutUrl).toBe("https://checkout.creem.io/business");
   });
 
   it("should create checkout URL for enterprise tier", async () => {
@@ -69,7 +69,7 @@ describe("POST /api/subscription/checkout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.checkoutUrl).toBe("https://checkout.lemonsqueezy.com/enterprise");
+    expect(data.checkoutUrl).toBe("https://checkout.creem.io/enterprise");
   });
 
   it("should reject invalid tier", async () => {
@@ -122,8 +122,8 @@ describe("POST /api/subscription/checkout", () => {
     expect([200, 429]).toContain(res.status);
   });
 
-  it("should handle Lemon Squeezy SDK errors", async () => {
-    const { createSubscriptionCheckout } = await import("@/lib/lemonsqueezy");
+  it("should handle payment gateway SDK errors", async () => {
+    const { createSubscriptionCheckout } = await import("@/lib/payment");
     vi.mocked(createSubscriptionCheckout).mockRejectedValueOnce(
       new Error("Checkout creation failed")
     );

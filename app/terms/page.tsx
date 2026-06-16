@@ -103,12 +103,11 @@ export default function TermsPage() {
           <ul className="list-disc space-y-1 pl-5">
             <li>
               <strong>Billing:</strong> Subscriptions are billed in advance on a
-              monthly basis through our payment processor, Lemon Squeezy.
+              monthly basis through our payment processor, Creem.
             </li>
             <li>
               <strong>VAT:</strong> All prices are inclusive of applicable EU
-              VAT, which is automatically calculated and remitted by Lemon
-              Squeezy.
+              VAT, which is automatically calculated and remitted by Creem.
             </li>
             <li>
               <strong>Renewal:</strong> Subscriptions automatically renew unless

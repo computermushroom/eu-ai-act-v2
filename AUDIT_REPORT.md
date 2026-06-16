@@ -117,8 +117,8 @@
 | `GET/POST /api/scan-tasks` | 部分可用 | 无 | CRUD 完整，但无自动执行机制 |
 | `POST /api/reports/pdf` | 真实可用 | Professional+ | 生成报告数据结构、返回下载链接 |
 | `GET /api/reports/pdf/download` | 真实可用 | Professional+ | 使用 `@react-pdf/renderer` 生成真实 PDF 二进制流 |
-| `POST /api/subscription/checkout` | 真实可用 | 无 | 调用 Lemon Squeezy SDK 生成结账 URL |
-| `POST /api/lemonsqueezy/webhook` | 真实可用 | 无 | HMAC-SHA256 签名验证、订阅状态同步 |
+| `POST /api/subscription/checkout` | 真实可用 | 无 | 调用支付网关 SDK 生成结账 URL |
+| `POST /api/payment/webhook` | 真实可用 | 无 | HMAC-SHA256 签名验证、订阅状态同步 |
 | `POST /api/i18n/set-locale` | 真实可用 | 无 | 设置 `NEXT_LOCALE` Cookie |
 | `GET /api/i18n/set` | 真实可用 | 无 | HTML 页面重定向方式设置语言 |
 | `GET /api/profile/export` | 真实可用 | 无 | GDPR 数据导出（JSON 附件）|
@@ -195,7 +195,7 @@
 |----------|--------|------|
 | 注册页面 (`/register`) | 真实可用 | 真实表单，调用 `POST /api/auth/register`，bcrypt 哈希存储 |
 | 登录页面 (`/login`) | 真实可用 | 真实表单，调用 `next-auth signIn`，支持 Credentials + OAuth |
-| 定价页面 (`/pricing`) | 真实可用 | 展示计划，CheckoutButton 调用 `/api/subscription/checkout` 获取 Lemon Squeezy 结账链接 |
+| 定价页面 (`/pricing`) | 真实可用 | 展示计划，CheckoutButton 调用 `/api/subscription/checkout` 获取支付网关结账链接 |
 | AI 助手 (`/tools/ai-assistant`) | 完全虚假 | 硬编码关键词匹配，无真实 AI 调用 |
 | 仪表盘 (`/dashboard`) | 真实可用 | 调用 `/api/dashboard` 获取真实聚合数据 |
 | 工具页面（所有 `/tools/*`）| 真实可用 | 均调用对应 `/api/tools/*` API，数据来自数据库 |
@@ -224,7 +224,7 @@
 - **培训模块**：自动种子、进度追踪
 - **审计日志**：全量记录、分页查询
 - **仪表盘**：聚合统计、最近活动
-- **订阅系统**：Lemon Squeezy 结账、Webhook 同步、层级管理
+- **订阅系统**：Creem/Paddle 结账、Webhook 同步、层级管理
 - **团队管理**：成员邀请、角色管理
 - **客户门户**：Portal 和客户 CRUD
 - **Webhook 配置**：CRUD、URL 验证

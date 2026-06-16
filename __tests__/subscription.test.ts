@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { POST as checkoutHandler } from "@/app/api/subscription/checkout/route";
-import { POST as webhookHandler } from "@/app/api/lemonsqueezy/webhook/route";
+import { POST as webhookHandler } from "@/app/api/payment/webhook/route";
 import { requireTier } from "@/lib/subscription-guard";
 
 // ─── Mock Prisma ───────────────────────────────────────────────────
@@ -39,9 +39,9 @@ vi.mock("@/lib/rate-limit", () => ({
   createRateLimiter: vi.fn(() => () => ({ allowed: true, remaining: 9, resetAt: Date.now() + 60000 })),
 }));
 
-// ─── Mock Lemon Squeezy ────────────────────────────────────────────
+// ─── Mock Payment Gateway ────────────────────────────────────────────
 const mockCreateSubscriptionCheckout = vi.fn();
-vi.mock("@/lib/lemonsqueezy", () => ({
+vi.mock("@/lib/payment", () => ({
   createSubscriptionCheckout: (...args: unknown[]) => mockCreateSubscriptionCheckout(...args),
   verifyWebhookSignature: vi.fn(() => true),
 }));
@@ -63,14 +63,14 @@ describe("Subscription API - Checkout", () => {
     mockAuth.mockResolvedValue({
       user: { id: "user-123", email: "test@example.com" },
     });
-    mockCreateSubscriptionCheckout.mockResolvedValue("https://checkout.lemonsqueezy.com/test");
+    mockCreateSubscriptionCheckout.mockResolvedValue("https://checkout.creem.io/test");
 
     const req = createJsonRequest({ tier: "professional" });
     const res = await checkoutHandler(req);
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.checkoutUrl).toBe("https://checkout.lemonsqueezy.com/test");
+    expect(body.checkoutUrl).toBe("https://checkout.creem.io/test");
     expect(mockCreateSubscriptionCheckout).toHaveBeenCalledWith(
       "professional",
       "test@example.com",
@@ -103,7 +103,7 @@ describe("Subscription API - Checkout", () => {
     expect(body.error).toBeDefined();
   });
 
-  it("should handle Lemon Squeezy SDK errors", async () => {
+  it("should handle payment gateway SDK errors", async () => {
     mockAuth.mockResolvedValue({
       user: { id: "user-123", email: "test@example.com" },
     });
@@ -168,7 +168,7 @@ describe("Subscription API - Webhook", () => {
     mockUserFindUnique.mockResolvedValue({ id: "user-123", email: "test@example.com" });
     mockSubscriptionUpsert.mockResolvedValue({ id: "local-sub-123" });
 
-    const req = new NextRequest("http://localhost/api/lemonsqueezy/webhook", {
+    const req = new NextRequest("http://localhost/api/payment/webhook", {
       method: "POST",
       body: JSON.stringify(validPayload),
       headers: {
@@ -194,7 +194,7 @@ describe("Subscription API - Webhook", () => {
     mockUserFindUnique.mockResolvedValue({ id: "user-123", email: "test@example.com" });
     mockSubscriptionUpdate.mockResolvedValue({ id: "local-sub-123", status: "cancelled" });
 
-    const req = new NextRequest("http://localhost/api/lemonsqueezy/webhook", {
+    const req = new NextRequest("http://localhost/api/payment/webhook", {
       method: "POST",
       body: JSON.stringify(cancelledPayload),
       headers: {
@@ -216,7 +216,7 @@ describe("Subscription API - Webhook", () => {
   });
 
   it("should reject missing signature", async () => {
-    const req = new NextRequest("http://localhost/api/lemonsqueezy/webhook", {
+    const req = new NextRequest("http://localhost/api/payment/webhook", {
       method: "POST",
       body: JSON.stringify(validPayload),
       headers: { "Content-Type": "application/json" },
@@ -232,7 +232,7 @@ describe("Subscription API - Webhook", () => {
   it("should reject user not found", async () => {
     mockUserFindUnique.mockResolvedValue(null);
 
-    const req = new NextRequest("http://localhost/api/lemonsqueezy/webhook", {
+    const req = new NextRequest("http://localhost/api/payment/webhook", {
       method: "POST",
       body: JSON.stringify(validPayload),
       headers: {

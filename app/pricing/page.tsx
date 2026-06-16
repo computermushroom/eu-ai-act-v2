@@ -1,6 +1,6 @@
 // Pricing Page
 // Server Component - displays 5 subscription tiers
-// Lemon Squeezy checkout integration via client-side API call
+// Payment checkout integration via client-side API call
 
 import type { Metadata } from "next";
 import Link from "next/link";

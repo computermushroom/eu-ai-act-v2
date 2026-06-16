@@ -100,8 +100,8 @@ model VerificationToken {
 }
 
 /**
- * Subscription model - linked to Lemon Squeezy
- * Tracks user's active subscription tier
+ * Subscription model - linked to payment gateway
+ * Tracks user's active subscription tier and gateway identifiers
  */
 model Subscription {
   id String @id @default(cuid())
@@ -110,12 +110,14 @@ model Subscription {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Lemon Squeezy identifiers
-  lemonSqueezyId          String? @unique // Subscription ID from Lemon Squeezy
-  lemonSqueezyCustomerId  String? // Customer ID from Lemon Squeezy
-  lemonSqueezyVariantId   String? // Product variant ID
-  lemonSqueezyProductId   String? // Product ID
-  lemonSqueezyOrderId     String? // Order ID
+  // Payment gateway identifiers
+  gatewaySubscriptionId String? @unique // Subscription ID from payment gateway
+  gatewayCustomerId     String? // Customer ID from payment gateway
+  gatewayProductId      String? // Product/plan ID from payment gateway
+  gatewayOrderId        String? // Order/transaction ID from payment gateway
+
+  // Payment gateway type
+  gateway PaymentGateway?
 
   // Subscription details
   status SubscriptionStatus @default(inactive)
@@ -133,9 +135,19 @@ model Subscription {
   cancelledAt DateTime?
 
   @@index([userId])
-  @@index([lemonSqueezyId])
+  @@index([gatewaySubscriptionId])
   @@index([status])
+  @@index([gateway])
   @@map("subscriptions")
+}
+
+/**
+ * Payment gateway enum
+ * Supported payment gateway providers
+ */
+enum PaymentGateway {
+  creem
+  paddle
 }
 
 /**

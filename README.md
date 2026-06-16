@@ -19,7 +19,7 @@ A comprehensive SaaS platform for EU AI Act compliance assessment, risk manageme
 
 ### Payments & Subscriptions
 - 5 subscription tiers: Free, Starter (EUR 39), Professional (EUR 89), Business (EUR 159), Enterprise (EUR 249)
-- Lemon Squeezy integration (checkout + webhooks)
+- Creem/Paddle integration (checkout + webhooks)
 - Subscription management in dashboard
 
 ### Internationalization
@@ -52,7 +52,7 @@ A comprehensive SaaS platform for EU AI Act compliance assessment, risk manageme
 | Prisma | 7.8.0 | ORM with PostgreSQL |
 | Tailwind CSS | 4.x | Styling (CSS-first config) |
 | NextAuth.js | 5.x | Authentication |
-| Lemon Squeezy | SDK | Payments |
+| Creem/Paddle | SDK | Payments |
 | next-intl | 4.x | Internationalization |
 | react-pdf | 4.x | PDF report generation |
 | bcryptjs | 2.x | Password hashing |
@@ -87,7 +87,8 @@ Required variables:
 - `NEXTAUTH_SECRET` - Generate with `openssl rand -base64 32`
 
 Optional variables:
-- `LEMONSQUEEZY_API_KEY` - For payments
+- `PAYMENT_GATEWAY` - Active payment gateway (creem|paddle)
+- `CREEM_API_KEY` - For Creem payments
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - For Google OAuth
 - `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` - For GitHub OAuth
 - `SMTP_HOST` / `SMTP_USER` / `SMTP_PASSWORD` - For password reset emails
@@ -147,7 +148,7 @@ eu-ai-act-compliance-new/
 │   │   ├── audit/         # Audit log API
 │   │   ├── health/        # Health check
 │   │   ├── i18n/          # Locale switching
-│   │   ├── lemonsqueezy/  # Payment webhooks
+│   │   ├── payment/       # Payment webhooks
 │   │   ├── profile/       # Profile + GDPR export/delete
 │   │   └── tools/         # Tool APIs
 │   ├── dashboard/         # Dashboard, settings, audit log
@@ -172,7 +173,7 @@ eu-ai-act-compliance-new/
 │   ├── audit.ts           # Audit logging service
 │   ├── email.ts           # Email service
 │   ├── env.ts             # Environment validation
-│   ├── lemonsqueezy.ts    # Payment SDK config
+│   ├── payment.ts         # Payment SDK config
 │   ├── prisma.ts          # Prisma client (Driver Adapter)
 │   ├── rate-limit.ts      # API rate limiting
 │   ├── url-scanner.ts     # URL compliance scanner
@@ -201,7 +202,7 @@ eu-ai-act-compliance-new/
 | `/api/audit` | GET/POST | Audit log query/create | Yes |
 | `/api/health` | GET | Health check | No |
 | `/api/i18n/set-locale` | POST | Switch language | No |
-| `/api/lemonsqueezy/webhook` | POST | Payment webhooks | No |
+| `/api/payment/webhook` | POST | Payment webhooks | No |
 | `/api/profile` | GET/PATCH | Get/update profile | Yes |
 | `/api/profile/export` | GET | GDPR data export | Yes |
 | `/api/profile/delete` | POST | GDPR account deletion | Yes |
@@ -215,7 +216,7 @@ eu-ai-act-compliance-new/
 - **Account** - OAuth provider connections
 - **Session** - Active sessions
 - **VerificationToken** - Email/password reset tokens
-- **Subscription** - Payment subscriptions (Lemon Squeezy)
+- **Subscription** - Payment subscriptions (Creem/Paddle)
 - **AuditLog** - Compliance action logging (17 action types)
 
 ### Enums

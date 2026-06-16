@@ -19,7 +19,6 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
-    "@lemonsqueezy/lemonsqueezy.js": "^4.0.0",
     "@neondatabase/serverless": "^1.0.0",
     "@prisma/adapter-neon": "^7.8.0",
     "@prisma/client": "^7.8.0",
