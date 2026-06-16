@@ -1,7 +1,7 @@
 // Creem Payment Gateway Adapter
 // Implements PaymentGateway interface for Creem.io
 // All API calls use native fetch - no external SDK dependency
-// Environment variables: CREEM_API_KEY, CREEM_STORE_ID, CREEM_WEBHOOK_SECRET
+// Environment variables: CREEM_API_KEY, CREEM_WEBHOOK_SECRET
 //                        CREEM_STARTER_PRODUCT_ID, CREEM_PROFESSIONAL_PRODUCT_ID,
 //                        CREEM_BUSINESS_PRODUCT_ID, CREEM_ENTERPRISE_PRODUCT_ID
 
@@ -115,20 +115,18 @@ export class CreemAdapter implements PaymentGateway {
   /** Check if Creem is properly configured with required credentials */
   get isConfigured(): boolean {
     const apiKey = process.env.CREEM_API_KEY;
-    const storeId = process.env.CREEM_STORE_ID;
-    return !!(apiKey && apiKey.length > 0 && storeId && storeId.length > 0);
+    return !!(apiKey && apiKey.length > 0);
   }
 
   /**
    * Create a Creem checkout session.
-   * POST https://api.creem.io/v1/checkout/sessions
+   * POST https://api.creem.io/v1/checkouts
    */
   async createCheckout(params: CheckoutParams): Promise<CheckoutResult> {
     const apiKey = process.env.CREEM_API_KEY;
-    const storeId = process.env.CREEM_STORE_ID;
 
-    if (!apiKey || !storeId) {
-      throw new Error("Creem is not configured: missing CREEM_API_KEY or CREEM_STORE_ID");
+    if (!apiKey) {
+      throw new Error("Creem is not configured: missing CREEM_API_KEY");
     }
 
     const productId = getCreemProductId(params.tier);
@@ -136,12 +134,13 @@ export class CreemAdapter implements PaymentGateway {
       throw new Error(`Creem product ID not configured for tier: ${params.tier}`);
     }
 
-    const requestBody = {
-      store_id: storeId,
+    const requestBody: Record<string, unknown> = {
       product_id: productId,
-      billing_cycle: params.billingCycle,
+      customer: {
+        email: params.userEmail,
+        id: params.userId,
+      },
       success_url: params.redirectUrl,
-      customer_email: params.userEmail,
       metadata: {
         user_id: params.userId,
         tier: params.tier,
@@ -149,7 +148,7 @@ export class CreemAdapter implements PaymentGateway {
     };
 
     try {
-      const response = await fetch(`${CREEM_API_BASE}/checkout/sessions`, {
+      const response = await fetch(`${CREEM_API_BASE}/checkouts`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -188,7 +187,7 @@ export class CreemAdapter implements PaymentGateway {
   /**
    * Verify Creem webhook signature and parse payload.
    * Uses HMAC-SHA256 with CREEM_WEBHOOK_SECRET.
-   * Signature is passed in the X-Creem-Signature header.
+   * Signature is passed in the creem-signature header (lowercase).
    */
   async verifyWebhook(
     rawBody: string,
@@ -201,9 +200,9 @@ export class CreemAdapter implements PaymentGateway {
     }
 
     // 1. Verify HMAC-SHA256 signature
-    const signature = headers.get("X-Creem-Signature") ?? "";
+    const signature = headers.get("creem-signature") ?? "";
     if (!signature) {
-      throw new Error("Missing X-Creem-Signature header");
+      throw new Error("Missing creem-signature header");
     }
 
     const expectedSignature = crypto

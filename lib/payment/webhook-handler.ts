@@ -101,6 +101,119 @@ function getGatewayFieldMapping(_gateway: PaymentGatewayType): GatewayFieldMappi
 }
 
 // ============================================================
+// Event-specific Handlers
+// ============================================================
+
+/**
+ * Handle subscription_created event.
+ * Creates or updates subscription, sends welcome email (reserved).
+ */
+async function handleSubscriptionCreated(
+  userId: string,
+  subscriptionId: string,
+  prismaTier: SubscriptionTier,
+  prismaStatus: SubscriptionStatus,
+  currentPeriodStart: Date,
+  currentPeriodEnd: Date | null,
+  gatewayCustomerId: string,
+  gatewayProductId: string,
+  gatewayOrderId: string
+): Promise<void> {
+  await prisma.subscription.update({
+    where: { id: subscriptionId },
+    data: {
+      gatewayCustomerId,
+      gatewayProductId,
+      gatewayOrderId,
+      tier: prismaTier,
+      status: prismaStatus,
+      currentPeriodStart,
+      currentPeriodEnd,
+      cancelledAt: null,
+    },
+  });
+
+  // RESERVED: Send welcome email
+  console.log(`[WebhookHandler] Welcome email reserved for user ${userId}`);
+}
+
+/**
+ * Handle subscription_cancelled event.
+ * Sets cancelledAt, downgrades to free if already expired.
+ */
+async function handleSubscriptionCancelled(
+  subscriptionId: string,
+  currentPeriodEnd: Date | null
+): Promise<void> {
+  const now = new Date();
+  const isExpired = currentPeriodEnd ? currentPeriodEnd < now : true;
+
+  await prisma.subscription.update({
+    where: { id: subscriptionId },
+    data: {
+      status: isExpired ? "inactive" : "cancelled",
+      cancelledAt: now,
+      tier: isExpired ? "free" : undefined,
+    },
+  });
+}
+
+/**
+ * Handle subscription_expired event.
+ * Downgrades subscription to free tier.
+ */
+async function handleSubscriptionExpired(
+  subscriptionId: string
+): Promise<void> {
+  await prisma.subscription.update({
+    where: { id: subscriptionId },
+    data: {
+      status: "expired",
+      tier: "free",
+      cancelledAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Handle subscription_payment_failed event.
+ * Marks subscription as past_due, sends reminder (reserved).
+ */
+async function handleSubscriptionPaymentFailed(
+  subscriptionId: string
+): Promise<void> {
+  await prisma.subscription.update({
+    where: { id: subscriptionId },
+    data: {
+      status: "past_due",
+    },
+  });
+
+  // RESERVED: Send payment failed reminder
+  console.log(`[WebhookHandler] Payment failed reminder reserved for subscription ${subscriptionId}`);
+}
+
+/**
+ * Handle subscription_refunded event.
+ * Marks subscription as refunded, downgrades to free (reserved).
+ */
+async function handleSubscriptionRefunded(
+  subscriptionId: string
+): Promise<void> {
+  await prisma.subscription.update({
+    where: { id: subscriptionId },
+    data: {
+      status: "cancelled",
+      tier: "free",
+      cancelledAt: new Date(),
+    },
+  });
+
+  // RESERVED: Process refund notification
+  console.log(`[WebhookHandler] Refund notification reserved for subscription ${subscriptionId}`);
+}
+
+// ============================================================
 // Webhook Processing
 // ============================================================
 
@@ -108,14 +221,14 @@ function getGatewayFieldMapping(_gateway: PaymentGatewayType): GatewayFieldMappi
  * Process unified webhook data and write to database.
  * This is the main entry point after webhook verification.
  *
- * Handles all event types:
- * - created: Creates or updates subscription record
- * - updated: Updates subscription status/tier
- * - cancelled: Marks subscription as cancelled
- * - expired: Marks subscription as expired
- * - paused: Marks subscription as paused
- * - payment_failed: Marks subscription as past_due
- * - refunded: Cancels subscription
+ * Handles all event types with differentiated logic:
+ * - subscription_created: Creates/updates subscription, welcome email (reserved)
+ * - subscription_updated: Updates subscription status/tier
+ * - subscription_cancelled: Sets cancelledAt, downgrades to free if expired
+ * - subscription_expired: Downgrades to free tier
+ * - subscription_paused: Marks subscription as paused
+ * - subscription_payment_failed: Marks as past_due, sends reminder (reserved)
+ * - subscription_refunded: Marks as refunded, downgrades to free (reserved)
  *
  * Idempotent: Uses gateway + gatewaySubscriptionId for unique identification.
  * If a subscription with the same gateway ID already exists, it will be updated
@@ -217,8 +330,48 @@ export async function processWebhookData(
       },
     });
 
+    // Apply event-specific differentiated handling
+    const unifiedEvent = data.rawEvent as UnifiedWebhookEvent;
+    switch (unifiedEvent) {
+      case "subscription_created":
+        await handleSubscriptionCreated(
+          user.id,
+          subscription.id,
+          prismaTier,
+          prismaStatus,
+          currentPeriodStart,
+          currentPeriodEnd,
+          gatewayCustomerId,
+          gatewayProductId,
+          gatewayOrderId
+        );
+        break;
+
+      case "subscription_cancelled":
+        await handleSubscriptionCancelled(subscription.id, currentPeriodEnd);
+        break;
+
+      case "subscription_expired":
+        await handleSubscriptionExpired(subscription.id);
+        break;
+
+      case "subscription_payment_failed":
+        await handleSubscriptionPaymentFailed(subscription.id);
+        break;
+
+      case "subscription_refunded":
+        await handleSubscriptionRefunded(subscription.id);
+        break;
+
+      default:
+        // subscription_updated, subscription_resumed, subscription_paused,
+        // subscription_unpaused, subscription_payment_success, subscription_payment_recovered
+        // Already handled by the base upsert above
+        break;
+    }
+
     // Write audit log
-    const auditAction = mapToAuditAction(data.rawEvent as UnifiedWebhookEvent);
+    const auditAction = mapToAuditAction(unifiedEvent);
 
     await createAuditLog({
       userId: user.id,
@@ -276,18 +429,47 @@ async function updateExistingSubscription(
     });
 
     if (existingSubscription) {
+      // Determine event-specific updates for orphan subscriptions too
+      const now = new Date();
+      let updateData: Record<string, unknown> = {
+        [fieldMapping.customerIdField]: gatewayCustomerId,
+        [fieldMapping.productIdField]: gatewayProductId,
+        [fieldMapping.orderIdField]: gatewayOrderId,
+        tier,
+        status,
+        currentPeriodStart,
+        currentPeriodEnd,
+      };
+
+      switch (rawEvent) {
+        case "subscription_cancelled":
+          updateData.cancelledAt = now;
+          if (currentPeriodEnd && currentPeriodEnd < now) {
+            updateData.tier = "free";
+            updateData.status = "inactive";
+          }
+          break;
+        case "subscription_expired":
+          updateData.tier = "free";
+          updateData.status = "expired";
+          updateData.cancelledAt = now;
+          break;
+        case "subscription_payment_failed":
+          updateData.status = "past_due";
+          break;
+        case "subscription_refunded":
+          updateData.tier = "free";
+          updateData.status = "cancelled";
+          updateData.cancelledAt = now;
+          break;
+        case "subscription_created":
+          updateData.cancelledAt = null;
+          break;
+      }
+
       await prisma.subscription.update({
         where: { id: existingSubscription.id },
-        data: {
-          [fieldMapping.customerIdField]: gatewayCustomerId,
-          [fieldMapping.productIdField]: gatewayProductId,
-          [fieldMapping.orderIdField]: gatewayOrderId,
-          tier,
-          status,
-          currentPeriodStart,
-          currentPeriodEnd,
-          cancelledAt: status === "cancelled" ? new Date() : undefined,
-        },
+        data: updateData,
       });
 
       console.log(

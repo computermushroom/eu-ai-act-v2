@@ -225,6 +225,7 @@ function PricingCard({ plan, isLoggedIn }: { plan: SubscriptionPlan; isLoggedIn:
 
 /**
  * Client-side checkout button for logged-in users
+ * Defaults to monthly billing cycle (no UI toggle currently present).
  */
 function CheckoutButton({ tier, isPopular }: { tier: string; isPopular: boolean }) {
   "use client";
@@ -236,7 +237,7 @@ function CheckoutButton({ tier, isPopular }: { tier: string; isPopular: boolean 
           const res = await fetch("/api/subscription/checkout", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ tier }),
+            body: JSON.stringify({ tier, billingCycle: "monthly" }),
           });
           const data = await res.json();
           if (data.checkoutUrl) {

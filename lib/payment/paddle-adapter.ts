@@ -1,18 +1,17 @@
 // Paddle Payment Gateway Adapter (Reserved - Not Active)
-// Implements PaymentGateway interface for Paddle.com
+// Implements PaymentGateway interface for Paddle Billing (new version)
 // All methods throw errors when credentials are not configured.
 // Complete Paddle API integration code is included but will not execute
-// until PADDLE_VENDOR_ID and PADDLE_API_KEY are set in environment.
+// until PADDLE_API_KEY (or PADDLE_API_KEY_SANDBOX) is set in environment.
 //
-// Environment variables: PADDLE_VENDOR_ID, PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET
-//                        PADDLE_STARTER_PLAN_ID, PADDLE_PROFESSIONAL_PLAN_ID,
-//                        PADDLE_BUSINESS_PLAN_ID, PADDLE_ENTERPRISE_PLAN_ID
+// Environment variables: PADDLE_API_KEY, PADDLE_API_KEY_SANDBOX, PADDLE_WEBHOOK_SECRET
+//                        PADDLE_STARTER_PRICE_ID, PADDLE_PROFESSIONAL_PRICE_ID,
+//                        PADDLE_BUSINESS_PRICE_ID, PADDLE_ENTERPRISE_PRICE_ID
 
 import crypto from "crypto";
 import type {
   PaymentGateway,
   PaymentTier,
-  BillingCycle,
   CheckoutParams,
   CheckoutResult,
   WebhookVerifyResult,
@@ -28,15 +27,20 @@ import type {
 /* PADDLE: 预留代码 - 后期启用 */
 const PADDLE_API_BASE = "https://api.paddle.com";
 
-/** Map subscription tiers to Paddle plan IDs from environment variables */
-function getPaddlePlanId(tier: PaymentTier): string {
-  const planIds: Record<PaymentTier, string> = {
-    starter: process.env.PADDLE_STARTER_PLAN_ID ?? "",
-    professional: process.env.PADDLE_PROFESSIONAL_PLAN_ID ?? "",
-    business: process.env.PADDLE_BUSINESS_PLAN_ID ?? "",
-    enterprise: process.env.PADDLE_ENTERPRISE_PLAN_ID ?? "",
+/** Map subscription tiers to Paddle price IDs from environment variables */
+function getPaddlePriceId(tier: PaymentTier): string {
+  const priceIds: Record<PaymentTier, string> = {
+    starter: process.env.PADDLE_STARTER_PRICE_ID ?? "",
+    professional: process.env.PADDLE_PROFESSIONAL_PRICE_ID ?? "",
+    business: process.env.PADDLE_BUSINESS_PRICE_ID ?? "",
+    enterprise: process.env.PADDLE_ENTERPRISE_PRICE_ID ?? "",
   };
-  return planIds[tier];
+  return priceIds[tier];
+}
+
+/** Get the active API key (production or sandbox) */
+function getPaddleApiKey(): string | undefined {
+  return process.env.PADDLE_API_KEY || process.env.PADDLE_API_KEY_SANDBOX;
 }
 
 // ============================================================
@@ -45,7 +49,7 @@ function getPaddlePlanId(tier: PaymentTier): string {
 
 /**
  * Maps Paddle raw webhook event names to unified event types.
- * Paddle uses dot-separated event names like "subscription.created".
+ * Paddle Billing uses dot-separated event names like "subscription.created".
  */
 /* PADDLE: 预留代码 - 后期启用 */
 function mapPaddleEvent(rawEvent: string): UnifiedWebhookEvent | null {
@@ -121,50 +125,43 @@ export class PaddleAdapter implements PaymentGateway {
 
   /**
    * Check if Paddle is properly configured.
-   * Currently returns false since Paddle credentials are not set.
+   * Paddle Billing requires only an API key (Bearer token).
    */
   get isConfigured(): boolean {
-    const vendorId = process.env.PADDLE_VENDOR_ID;
-    const apiKey = process.env.PADDLE_API_KEY;
-    return !!(
-      vendorId &&
-      vendorId.length > 0 &&
-      apiKey &&
-      apiKey.length > 0
-    );
+    const apiKey = getPaddleApiKey();
+    return !!(apiKey && apiKey.length > 0);
   }
 
   /**
-   * Create a Paddle checkout session.
+   * Create a Paddle Billing checkout session.
    * PADDLE: 预留代码 - 后期启用
    *
-   * Paddle checkout flow:
-   * 1. Create a price entity (or use existing plan price)
-   * 2. Create a transaction with the price and customer details
+   * Paddle Billing checkout flow:
+   * 1. Create a customer (POST /customers) to get customer_id
+   * 2. Create a transaction (POST /transactions) with items and customer_id
    * 3. Return the checkout URL from the transaction response
    */
   async createCheckout(params: CheckoutParams): Promise<CheckoutResult> {
-    const vendorId = process.env.PADDLE_VENDOR_ID;
-    const apiKey = process.env.PADDLE_API_KEY;
+    const apiKey = getPaddleApiKey();
 
-    if (!vendorId || !apiKey) {
-      throw new Error("Paddle is not configured");
+    if (!apiKey) {
+      throw new Error("Paddle is not configured: missing PADDLE_API_KEY or PADDLE_API_KEY_SANDBOX");
     }
 
     /* PADDLE: 预留代码 - 后期启用 */
-    const planId = getPaddlePlanId(params.tier);
-    if (!planId) {
-      throw new Error(`Paddle plan ID not configured for tier: ${params.tier}`);
+    const priceId = getPaddlePriceId(params.tier);
+    if (!priceId) {
+      throw new Error(`Paddle price ID not configured for tier: ${params.tier}`);
     }
 
-    // Step 1: Create a price for the selected plan and billing cycle
-    // Paddle requires a price_id to create a transaction
-    const priceData = await this.createPaddlePrice(apiKey, planId, params.billingCycle);
+    // Step 1: Create a customer to get customer_id
+    const customerData = await this.createPaddleCustomer(apiKey, params);
 
     // Step 2: Create a transaction (checkout session)
     const transactionData = await this.createPaddleTransaction(
       apiKey,
-      priceData.id,
+      priceId,
+      customerData.id,
       params
     );
 
@@ -189,7 +186,7 @@ export class PaddleAdapter implements PaymentGateway {
     const webhookSecret = process.env.PADDLE_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
-      throw new Error("Paddle is not configured");
+      throw new Error("Paddle is not configured: missing PADDLE_WEBHOOK_SECRET");
     }
 
     /* PADDLE: 预留代码 - 后期启用 */
@@ -286,37 +283,34 @@ export class PaddleAdapter implements PaymentGateway {
   // ============================================================
 
   /**
-   * Create a Paddle price entity for a given plan and billing cycle.
+   * Create a Paddle customer.
    * PADDLE: 预留代码 - 后期启用
    *
-   * POST https://api.paddle.com/prices
+   * POST https://api.paddle.com/customers
    */
   /* PADDLE: 预留代码 - 后期启用 */
-  private async createPaddlePrice(
+  private async createPaddleCustomer(
     apiKey: string,
-    planId: string,
-    billingCycle: BillingCycle
+    params: CheckoutParams
   ): Promise<{ id: string }> {
-    const response = await fetch(`${PADDLE_API_BASE}/prices`, {
+    const response = await fetch(`${PADDLE_API_BASE}/customers`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        product_id: planId,
-        name: `${planId}-${billingCycle}`,
-        billing_cycle: billingCycle === "monthly" ? "month" : "year",
-        unit_price: {
-          amount: "0", // Will be set by Paddle plan configuration
-          currency_code: "USD",
+        email: params.userEmail,
+        custom_data: {
+          user_id: params.userId,
+          tier: params.tier,
         },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error");
-      throw new Error(`Paddle API error creating price (${response.status}): ${errorText}`);
+      throw new Error(`Paddle API error creating customer (${response.status}): ${errorText}`);
     }
 
     const data = await response.json();
@@ -333,6 +327,7 @@ export class PaddleAdapter implements PaymentGateway {
   private async createPaddleTransaction(
     apiKey: string,
     priceId: string,
+    customerId: string,
     params: CheckoutParams
   ): Promise<{ id: string; checkout_url: string }> {
     const response = await fetch(`${PADDLE_API_BASE}/transactions`, {
@@ -348,7 +343,8 @@ export class PaddleAdapter implements PaymentGateway {
             quantity: 1,
           },
         ],
-        customer_email: params.userEmail,
+        customer_id: customerId,
+        collection_mode: params.billingCycle === "yearly" ? "automatic" : "automatic",
         custom_data: {
           user_id: params.userId,
           tier: params.tier,
