@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, FormEvent } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { DevSubscriptionSimulator } from "@/components/DevSubscriptionSimulator";
 
 /**
  * Profile form state
@@ -328,6 +329,11 @@ export default function SettingsPage() {
                 Update
               </button>
             </div>
+          </div>
+
+          {/* Dev Mode Subscription Simulator */}
+          <div className="mt-4">
+            <DevSubscriptionSimulator />
           </div>
         </section>
 
