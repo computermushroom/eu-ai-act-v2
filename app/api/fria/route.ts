@@ -628,7 +628,11 @@ function analyzeSection6(content: string | null | undefined): SectionAnalysis {
 /**
  * Compute overall FRIA score from section analyses.
  * Each section scores 0-20, total 0-120, scaled to 0-100.
- * Compliance threshold: >= 70
+ * 
+ * IMPORTANT: This is an automated content quality score, NOT a legal compliance determination.
+ * A score >= 70 means the content is sufficiently detailed for human review,
+ * but does NOT guarantee EU AI Act Art.27 compliance.
+ * Human review is required before marking as officially compliant.
  */
 function computeOverallScore(sections: SectionAnalysis[]): {
   overallScore: number;
@@ -801,7 +805,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       threshold: 70,
       filledSections: allAnalyses.filter((a) => a.filled).length,
       totalSections: 6,
+      disclaimer: "This assessment is an automated preliminary evaluation based on content analysis. It does not constitute legal advice. A qualified legal professional should review the assessment before submission to regulatory authorities.",
     };
+
+    // Determine the effective status:
+    // - Auto-score reaching threshold does NOT mean compliant; it means "ready for human review"
+    // - Only explicitly setting status to "approved" marks the system as art27Compliant
+    let newStatus = status ?? "draft";
+    if (compliant && newStatus !== "approved") {
+      newStatus = "pending_review";
+    }
 
     // Upsert FRIA assessment
     const assessment = await prisma.fRIAAssessment.upsert({
@@ -814,7 +827,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         section4: section4 ?? null,
         section5: section5 ?? null,
         section6: section6 ?? null,
-        status: status ?? "draft",
+        status: newStatus,
         overallScore,
       },
       update: {
@@ -824,16 +837,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         section4: section4 !== undefined ? section4 : undefined,
         section5: section5 !== undefined ? section5 : undefined,
         section6: section6 !== undefined ? section6 : undefined,
-        status: status !== undefined ? status : undefined,
+        status: newStatus,
         overallScore,
-        submittedAt: status === "submitted" ? new Date() : undefined,
+        submittedAt: newStatus === "submitted" || newStatus === "pending_review" ? new Date() : undefined,
       },
     });
 
-    // Update AI system Art.27 compliance flag (threshold >= 70)
+    // Only mark as art27Compliant when human review has approved
     await prisma.aISystem.update({
       where: { id: systemId },
-      data: { art27Compliant: compliant },
+      data: { art27Compliant: newStatus === "approved" },
     });
 
     // Audit log
@@ -862,6 +875,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       success: true,
       assessment,
       detailedAnalysis,
+      reviewStatus: {
+        status: newStatus,
+        autoCompliant: compliant,
+        humanApproved: newStatus === "approved",
+        needsReview: compliant && newStatus !== "approved",
+      },
     });
   } catch (error) {
     console.error("[FRIA API] POST failed:", error);

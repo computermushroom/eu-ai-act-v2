@@ -56,8 +56,12 @@ A comprehensive SaaS platform for EU AI Act compliance assessment, risk manageme
 | next-intl | 4.x | Internationalization |
 | react-pdf | 4.x | PDF report generation |
 | bcryptjs | 2.x | Password hashing |
-| nodemailer | 6.x | Email delivery |
+| nodemailer | 6.x | Email delivery (SMTP) |
+| Resend | SDK | Email delivery (Resend) |
+| OpenAI SDK | 4.x | LLM provider (AI assistant) |
+| Anthropic SDK | SDK | LLM provider (AI assistant) |
 | zod | 3.x | Schema validation |
+| Vitest | 2.x | Unit testing |
 
 ## Quick Start
 
@@ -92,6 +96,13 @@ Optional variables:
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - For Google OAuth
 - `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` - For GitHub OAuth
 - `SMTP_HOST` / `SMTP_USER` / `SMTP_PASSWORD` - For password reset emails
+- `SMTP_PROVIDER` - SMTP preset (e.g., gmail, sendgrid)
+- `RESEND_API_KEY` - For Resend email delivery
+- `LLM_PROVIDER` - LLM provider selection (openai|anthropic)
+- `OPENAI_API_KEY` - OpenAI API key
+- `OPENAI_MODEL` - OpenAI model name (default: gpt-4o)
+- `ANTHROPIC_API_KEY` - Anthropic API key
+- `ANTHROPIC_MODEL` - Anthropic model name (default: claude-sonnet-4-20250514)
 
 ### 3. Database Setup
 
@@ -129,6 +140,28 @@ The included `vercel.json` configures:
 - Security headers (X-Frame-Options, X-Content-Type-Options)
 - Environment variable documentation
 
+#### Vercel Environment Variables
+
+| Variable | Production | Preview | Notes |
+|----------|-----------|---------|-------|
+| `DATABASE_URL` | Required | Required | Prisma connection (uses pooler) |
+| `DIRECT_DATABASE_URL` | Required | Not needed | Direct connection for migrations |
+| `NEXTAUTH_URL` | Required | Required | Auto-set by Vercel |
+| `NEXTAUTH_SECRET` | Required | Required | Generate with `openssl rand -base64 32` |
+| `PAYMENT_GATEWAY` | Required | Optional | Set to `creem` or `paddle` |
+| `CREEM_API_KEY` | Required | Optional | If using Creem |
+| `LLM_PROVIDER` | Required | Optional | `openai` or `anthropic` |
+| `RESEND_API_KEY` | Optional | Optional | If using Resend for emails |
+
+> **Note:** `DIRECT_DATABASE_URL` is only needed in Production for Prisma migrations. Preview deployments use the pooled `DATABASE_URL`.
+
+#### Webhook URLs
+
+Configure these URLs in your payment provider dashboards:
+
+- **Creem:** `https://your-domain.com/api/payment/webhook/creem`
+- **Paddle:** `https://your-domain.com/api/payment/webhook/paddle`
+
 ### Health Check
 
 ```bash
@@ -161,8 +194,10 @@ eu-ai-act-compliance-new/
 │   ├── sitemap.ts         # Dynamic sitemap
 │   └── robots.ts          # robots.txt
 ├── components/
+│   ├── chat/              # AI chat widget
 │   ├── layout/            # Header, Footer, CookieConsent, LanguageSwitcher
-│   └── tools/             # ComplianceReportPDF
+│   ├── tools/             # ComplianceReportPDF
+│   └── DevSubscriptionSimulator.tsx  # Dev mode subscription UI
 ├── hooks/
 │   ├── useAuth.ts         # Authentication hook
 │   └── useTool.ts         # Tool management hook
@@ -171,9 +206,20 @@ eu-ai-act-compliance-new/
 │   ├── auth.ts            # NextAuth configuration
 │   ├── auth-guard.ts      # Route protection
 │   ├── audit.ts           # Audit logging service
-│   ├── email.ts           # Email service
+│   ├── dev-mode.ts        # Dev mode subscription simulator
+│   ├── email.ts           # Email service (Resend + SMTP)
 │   ├── env.ts             # Environment validation
-│   ├── payment.ts         # Payment SDK config
+│   ├── llm/               # LLM abstraction layer
+│   │   ├── types.ts       # LLM provider types
+│   │   ├── openai-provider.ts  # OpenAI implementation
+│   │   ├── anthropic-provider.ts # Anthropic implementation
+│   │   └── index.ts       # Provider factory
+│   ├── payment/           # Payment adapters
+│   │   ├── types.ts       # Payment gateway types
+│   │   ├── creem-adapter.ts    # Creem gateway
+│   │   ├── paddle-adapter.ts   # Paddle gateway
+│   │   ├── webhook-handler.ts  # Webhook processing
+│   │   └── index.ts       # Gateway factory
 │   ├── prisma.ts          # Prisma client (Driver Adapter)
 │   ├── rate-limit.ts      # API rate limiting
 │   ├── url-scanner.ts     # URL compliance scanner
@@ -199,15 +245,69 @@ eu-ai-act-compliance-new/
 | `/api/auth/register` | POST | User registration | No |
 | `/api/auth/reset-password` | POST | Request password reset | No |
 | `/api/auth/reset-password/confirm` | POST | Confirm password reset | No |
+| `/api/ai-assistant` | POST | AI compliance assistant | Yes |
 | `/api/audit` | GET/POST | Audit log query/create | Yes |
+| `/api/compliance-generator` | POST | Compliance report generation | Yes |
+| `/api/dev/simulate-subscription` | GET/POST | Dev mode subscription simulation | Dev only |
+| `/api/fria` | GET/POST | FRIA assessment (Art.27) | Yes (Business tier) |
 | `/api/health` | GET | Health check | No |
 | `/api/i18n/set-locale` | POST | Switch language | No |
-| `/api/payment/webhook` | POST | Payment webhooks | No |
+| `/api/payment/webhook/creem` | POST | Creem payment webhook | No |
+| `/api/payment/webhook/paddle` | POST | Paddle payment webhook | No |
 | `/api/profile` | GET/PATCH | Get/update profile | Yes |
 | `/api/profile/export` | GET | GDPR data export | Yes |
 | `/api/profile/delete` | POST | GDPR account deletion | Yes |
+| `/api/subscription/checkout` | POST | Create payment session | Yes |
 | `/api/tools` | GET | List available tools | No |
 | `/api/tools/url-scan` | POST | URL compliance scan | Yes |
+
+## Architecture
+
+### Payment System (Adapter Pattern)
+
+The payment system uses the **Adapter Pattern** to support multiple gateways (Creem and Paddle) through a unified interface. Each gateway adapter implements a common `PaymentGateway` interface defined in `lib/payment/types.ts`. The factory function in `lib/payment/index.ts` selects the active adapter based on the `PAYMENT_GATEWAY` environment variable.
+
+```
+lib/payment/
+├── types.ts              # PaymentGateway interface + shared types
+├── creem-adapter.ts      # Creem SDK implementation
+├── paddle-adapter.ts     # Paddle SDK implementation
+├── webhook-handler.ts    # Unified webhook processing
+└── index.ts              # Factory: getPaymentGateway()
+```
+
+Webhook endpoints (`/api/payment/webhook/creem`, `/api/payment/webhook/paddle`) receive provider-specific payloads, normalize them through the webhook handler, and update the database.
+
+### LLM System (Abstraction Layer)
+
+The LLM system provides a **provider-agnostic abstraction layer** that supports OpenAI and Anthropic. A shared `LLMProvider` interface (`lib/llm/types.ts`) defines the contract, and concrete implementations handle provider-specific API calls.
+
+```
+lib/llm/
+├── types.ts              # LLMProvider interface + message types
+├── openai-provider.ts    # OpenAI API implementation
+├── anthropic-provider.ts # Anthropic API implementation
+└── index.ts              # Factory: getLLMProvider()
+```
+
+Switch providers by setting `LLM_PROVIDER=openai` or `LLM_PROVIDER=anthropic` in your environment variables.
+
+### Email System (Fire-and-Forget)
+
+Email delivery uses a **fire-and-forget** pattern to avoid blocking webhook responses. The `lib/email.ts` module supports two backends:
+
+- **Resend** (`RESEND_API_KEY`) - Recommended for production
+- **SMTP** (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`) - Fallback or custom servers
+
+Emails are sent asynchronously without awaiting completion, ensuring webhook handlers respond within timeout limits.
+
+### Audit System
+
+All critical operations are recorded through the audit logging service (`lib/audit.ts`). The system tracks 17+ action types including user authentication events, tool usage, payment events, and GDPR actions. Audit logs are stored in the `AuditLog` database model and accessible via the `/api/audit` endpoint (authenticated).
+
+### Dev Mode
+
+In development environments (`NODE_ENV=development`), the Dev Mode simulator (`lib/dev-mode.ts`) provides a mock subscription system. The `DevSubscriptionSimulator.tsx` component renders a UI in the dashboard that allows developers to simulate subscription tier changes without real payment processing. The `/api/dev/simulate-subscription` endpoint is only available in development mode.
 
 ## Database Schema
 
@@ -233,6 +333,45 @@ eu-ai-act-compliance-new/
 | Art.6 (Risk Classification) | Risk Assessment | Active |
 | Art.50 (Transparency) | Transparency Check | Active |
 | General | URL Compliance Scan | Active |
+
+## Testing
+
+The project uses [Vitest](https://vitest.dev/) for unit testing with jsdom environment.
+
+```bash
+# Run all tests
+npx vitest
+
+# Run specific test file
+npx vitest __tests__/api/webhook-handler.test.ts
+
+# Run with coverage report
+npx vitest --coverage
+
+# Run tests in watch mode
+npx vitest --watch
+```
+
+Test files are located in `__tests__/` and follow the pattern `*.test.{ts,tsx}`. The test configuration is defined in `vitest.config.ts`.
+
+## Payment Setup
+
+### Creem
+
+1. Sign up at [Creem](https://creem.io/) and create a merchant account
+2. Generate an API Key from the dashboard
+3. Create a Product for each subscription tier (Starter, Professional, Business, Enterprise)
+4. Configure the webhook URL: `https://your-domain.com/api/payment/webhook/creem`
+
+### Environment Variables
+
+```bash
+PAYMENT_GATEWAY=creem
+CREEM_API_KEY=your-creem-api-key
+CREEM_WEBHOOK_SECRET=your-webhook-secret
+```
+
+> **Dev Mode:** In development (`NODE_ENV=development`), the Dev Mode simulator bypasses real payment processing. Use the `DevSubscriptionSimulator` component in the dashboard to test subscription flows without a payment provider.
 
 ## License
 
