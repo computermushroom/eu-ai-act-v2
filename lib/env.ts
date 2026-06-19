@@ -46,6 +46,11 @@ const ENV_VARS: EnvVarSpec[] = [
   { name: "SMTP_PROVIDER", required: false, description: "SMTP preset (gmail|outlook|sendgrid...)" },
   // i18n
   { name: "NEXT_PUBLIC_DEFAULT_LOCALE", required: false, description: "Default locale (default: en)" },
+  // Sentry
+  { name: "NEXT_PUBLIC_SENTRY_DSN", required: false, description: "Sentry client DSN for error monitoring" },
+  { name: "SENTRY_DSN", required: false, description: "Sentry server/edge DSN for error monitoring" },
+  { name: "SENTRY_ORG", required: false, description: "Sentry organization slug for sourcemap uploads" },
+  { name: "SENTRY_PROJECT", required: false, description: "Sentry project slug for sourcemap uploads" },
 ];
 
 /**

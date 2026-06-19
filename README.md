@@ -249,6 +249,7 @@ eu-ai-act-compliance-new/
 | `/api/audit` | GET/POST | Audit log query/create | Yes |
 | `/api/compliance-generator` | POST | Compliance report generation | Yes |
 | `/api/dev/simulate-subscription` | GET/POST | Dev mode subscription simulation | Dev only |
+| `/api/docs` | GET | OpenAPI 3.0 JSON specification | No |
 | `/api/fria` | GET/POST | FRIA assessment (Art.27) | Yes (Business tier) |
 | `/api/health` | GET | Health check | No |
 | `/api/i18n/set-locale` | POST | Switch language | No |
@@ -260,6 +261,16 @@ eu-ai-act-compliance-new/
 | `/api/subscription/checkout` | POST | Create payment session | Yes |
 | `/api/tools` | GET | List available tools | No |
 | `/api/tools/url-scan` | POST | URL compliance scan | Yes |
+
+### API Documentation
+
+Interactive Swagger UI documentation is available at `/docs` (powered by `swagger-ui-react`).
+The OpenAPI 3.0 JSON spec is served dynamically from `/api/docs`.
+
+| Endpoint | Description |
+|----------|-------------|
+| [`/docs`](/docs) | Swagger UI interactive documentation |
+| [`/api/docs`](/api/docs) | OpenAPI 3.0 JSON specification |
 
 ## Architecture
 

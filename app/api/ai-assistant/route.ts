@@ -4,6 +4,7 @@
 // Rate-limited to 30 requests/minute per IP
 
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
@@ -130,6 +131,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ response: content });
   } catch (error) {
+    Sentry.captureException(error);
     console.error(`[AI ASSISTANT] ${provider.name} error:`, error);
     const message = error instanceof Error ? error.message : "Assistant request failed";
     return NextResponse.json({ error: message }, { status: 500 });

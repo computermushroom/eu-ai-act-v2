@@ -1,4 +1,5 @@
 const createNextIntlPlugin = require("next-intl/plugin");
+const { withSentryConfig } = require("@sentry/nextjs");
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
@@ -9,6 +10,9 @@ const nextConfig = {
 
   // Next.js 16: Turbopack is the default bundler
   // No need to explicitly enable it
+
+  // Transpile packages that need babel processing (Swagger UI uses CommonJS)
+  transpilePackages: ["swagger-ui-react"],
 
   // Server external packages (Node.js native modules used server-side only)
   serverExternalPackages: ["bcryptjs", "nodemailer", "pg"],
@@ -51,4 +55,8 @@ const nextConfig = {
   },
 };
 
-module.exports = withNextIntl(nextConfig);
+module.exports = withSentryConfig(withNextIntl(nextConfig), {
+  silent: true,
+  org: process.env.SENTRY_ORG ?? "",
+  project: process.env.SENTRY_PROJECT ?? "",
+});

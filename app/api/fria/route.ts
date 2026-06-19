@@ -3,6 +3,7 @@
 // POST: Create/update FRIA assessment with sections 1-6
 
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
@@ -694,6 +695,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ assessments });
   } catch (error) {
+    Sentry.captureException(error);
     console.error("[FRIA API] GET failed:", error);
     return NextResponse.json({ error: "Failed to fetch FRIA assessment" }, { status: 500 });
   }
@@ -883,6 +885,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     });
   } catch (error) {
+    Sentry.captureException(error);
     console.error("[FRIA API] POST failed:", error);
     return NextResponse.json({ error: "Failed to save FRIA assessment" }, { status: 500 });
   }

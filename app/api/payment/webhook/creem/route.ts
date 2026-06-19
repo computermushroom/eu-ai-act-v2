@@ -4,6 +4,7 @@
 // Delegates to unified webhook handler for database operations
 
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { getPaymentGateway } from "@/lib/payment";
 import { processWebhookData } from "@/lib/payment/webhook-handler";
 
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ received: true });
   } catch (error) {
+    Sentry.captureException(error);
     console.error("[Creem Webhook] Processing error:", error);
     return NextResponse.json(
       { error: "Internal server error" },

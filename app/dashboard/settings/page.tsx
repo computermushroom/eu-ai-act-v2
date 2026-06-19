@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback, FormEvent } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { DevSubscriptionSimulator } from "@/components/DevSubscriptionSimulator";
+import { useProfile } from "@/hooks/useProfile";
 
 /**
  * Profile form state
@@ -39,8 +40,8 @@ export default function SettingsPage() {
   const t = useTranslations();
   void t;
 
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const { profile: profileData, isLoading: isLoadingProfile, refresh: refreshProfile } = useProfile();
+  const profile: UserProfile | null = profileData?.user ?? null;
 
   const [form, setForm] = useState<ProfileForm>({ name: "", email: "" });
   const [isSaving, setIsSaving] = useState(false);
@@ -52,27 +53,15 @@ export default function SettingsPage() {
 
   const [isExporting, setIsExporting] = useState(false);
 
-  // Fetch profile on mount
+  // Sync form when profile loads
   useEffect(() => {
-    async function fetchProfile() {
-      try {
-        const response = await fetch("/api/profile");
-        if (response.ok) {
-          const data = await response.json();
-          setProfile(data.user);
-          setForm({
-            name: data.user.name ?? "",
-            email: data.user.email ?? "",
-          });
-        }
-      } catch (error) {
-        console.error("[SETTINGS] Failed to fetch profile:", error);
-      } finally {
-        setIsLoadingProfile(false);
-      }
+    if (profile) {
+      setForm({
+        name: profile.name ?? "",
+        email: profile.email ?? "",
+      });
     }
-    fetchProfile();
-  }, []);
+  }, [profile]);
 
   const handleProfileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,13 +93,14 @@ export default function SettingsPage() {
         }
 
         setSaveMessage("Profile updated successfully.");
+        void refreshProfile();
       } catch {
         setSaveMessage("Failed to update profile. Please try again.");
       } finally {
         setIsSaving(false);
       }
     },
-    [form]
+    [form, refreshProfile]
   );
 
   const handleExportData = useCallback(async () => {
