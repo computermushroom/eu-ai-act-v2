@@ -3,7 +3,7 @@ import { getToken } from "next-auth/jwt";
 
 const protectedRoutes = ["/dashboard", "/tools"];
 
-export async function middleware(req: Request) {
+export async function proxy(req: Request) {
   const { pathname } = new URL(req.url);
 
   const token = await getToken({

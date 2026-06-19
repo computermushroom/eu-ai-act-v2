@@ -56,7 +56,7 @@ const nextConfig = {
 };
 
 module.exports = withSentryConfig(withNextIntl(nextConfig), {
-  silent: true,
+  silent: process.env.SENTRY_SILENT === "true" || process.env.NODE_ENV !== "production",
   org: process.env.SENTRY_ORG ?? "",
   project: process.env.SENTRY_PROJECT ?? "",
 });

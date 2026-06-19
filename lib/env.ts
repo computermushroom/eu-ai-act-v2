@@ -51,6 +51,7 @@ const ENV_VARS: EnvVarSpec[] = [
   { name: "SENTRY_DSN", required: false, description: "Sentry server/edge DSN for error monitoring" },
   { name: "SENTRY_ORG", required: false, description: "Sentry organization slug for sourcemap uploads" },
   { name: "SENTRY_PROJECT", required: false, description: "Sentry project slug for sourcemap uploads" },
+  { name: "SENTRY_SILENT", required: false, description: "Suppress Sentry build warnings (true|false)" },
 ];
 
 /**

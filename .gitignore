@@ -45,3 +45,6 @@ prisma/*.db
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+# E2E local env
+e2e/.env.local
