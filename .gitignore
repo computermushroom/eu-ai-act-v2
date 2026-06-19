@@ -40,3 +40,8 @@ next-env.d.ts
 # Prisma
 prisma/*.db
 *.tar.gz
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/

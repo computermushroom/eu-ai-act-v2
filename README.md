@@ -107,9 +107,14 @@ Optional variables:
 ### 3. Database Setup
 
 ```bash
-# Create the database in PostgreSQL, then:
+# Generate Prisma Client
 npx prisma generate
-npx prisma db push
+
+# Development: apply migrations (interactive, creates new migrations if needed)
+npx prisma migrate dev
+
+# Production: apply pending migrations (non-interactive)
+npx prisma migrate deploy
 ```
 
 ### 4. Run Development Server
