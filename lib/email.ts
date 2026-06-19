@@ -245,3 +245,46 @@ export async function sendWelcomeEmail(
     html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:20px"><h2 style="color:#1a1a2e">Welcome, ${name}!</h2><p>Your EU AI Act Compliance account has been created successfully.</p><ul style="margin:16px 0;padding-left:20px"><li>Run AI risk assessments (Art.6)</li><li>Check prohibited practices (Art.5)</li><li>Verify transparency obligations (Art.50)</li><li>Generate compliance reports</li></ul><p style="margin:20px 0"><a href="${dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:500">Go to Dashboard</a></p><hr style="border:none;border-top:1px solid #eee;margin:20px 0"><p style="color:#999;font-size:12px">EU AI Act Compliance Tool</p></body></html>`,
   });
 }
+
+/**
+ * Send payment failed reminder email
+ * Notifies user that their payment failed and they need to update their payment method
+ * @param email - Recipient email address
+ * @param name - User's name
+ * @param tier - Subscription tier name
+ */
+export async function sendPaymentFailedEmail(
+  email: string,
+  name: string,
+  tier: string
+): Promise<void> {
+  const dashboardUrl = `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/dashboard`;
+  await sendEmailWithRetry({
+    ...getBaseOptions(email),
+    subject: "Payment Failed - Action Required - EU AI Act Compliance",
+    text: `Hello ${name},\n\nWe were unable to process your payment for the ${tier} subscription.\n\nYour subscription is currently past due. To continue using all features, please update your payment method as soon as possible.\n\nVisit your dashboard to update your payment details.\n\nIf you believe this is an error, please contact our support team.\n\nEU AI Act Compliance Team`,
+    html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:20px"><h2 style="color:#1a1a2e">Payment Failed - Action Required</h2><p>Hello ${name},</p><p>We were unable to process your payment for the <strong>${tier}</strong> subscription.</p><p>Your subscription is currently <strong>past due</strong>. To continue using all features, please update your payment method as soon as possible.</p><p style="margin:20px 0"><a href="${dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:500">Update Payment Method</a></p><p style="color:#666;font-size:14px">If you believe this is an error, please contact our support team.</p><hr style="border:none;border-top:1px solid #eee;margin:20px 0"><p style="color:#999;font-size:12px">EU AI Act Compliance Tool</p></body></html>`,
+  });
+}
+
+/**
+ * Send refund notification email
+ * Notifies user that their refund has been processed and subscription downgraded to Free
+ * @param email - Recipient email address
+ * @param name - User's name
+ * @param tier - Previous subscription tier name
+ */
+export async function sendRefundEmail(
+  email: string,
+  name: string,
+  tier: string
+): Promise<void> {
+  const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+  const pricingUrl = `${baseUrl}/pricing`;
+  await sendEmailWithRetry({
+    ...getBaseOptions(email),
+    subject: "Refund Processed - EU AI Act Compliance",
+    text: `Hello ${name},\n\nYour refund for the ${tier} subscription has been processed successfully.\n\nYour subscription has been downgraded to the Free tier. You can still continue using basic features, or resubscribe at any time to regain access to premium features.\n\nVisit our pricing page to view available plans.\n\nThank you for using EU AI Act Compliance.\n\nEU AI Act Compliance Team`,
+    html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:20px"><h2 style="color:#1a1a2e">Refund Processed</h2><p>Hello ${name},</p><p>Your refund for the <strong>${tier}</strong> subscription has been processed successfully.</p><p>Your subscription has been downgraded to the <strong>Free</strong> tier. You can still continue using basic features, or resubscribe at any time to regain access to premium features.</p><p style="margin:20px 0"><a href="${pricingUrl}" style="display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:500">View Plans & Resubscribe</a></p><p style="color:#666;font-size:14px">Thank you for using EU AI Act Compliance.</p><hr style="border:none;border-top:1px solid #eee;margin:20px 0"><p style="color:#999;font-size:12px">EU AI Act Compliance Tool</p></body></html>`,
+  });
+}

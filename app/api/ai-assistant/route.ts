@@ -1,5 +1,6 @@
 // AI Assistant API Route
-// POST: Calls OpenAI API with EU AI Act compliance system prompt
+// POST: Calls LLM provider (OpenAI / Anthropic) with EU AI Act compliance system prompt
+// Provider selection controlled by LLM_PROVIDER environment variable
 // Rate-limited to 30 requests/minute per IP
 
 import { NextRequest, NextResponse } from "next/server";
@@ -8,6 +9,7 @@ import { auth } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { requireTier } from "@/lib/subscription-guard";
+import { getLLMProvider } from "@/lib/llm";
 
 const aiAssistantSchema = z.object({
   message: z.string().min(1, "Message is required").max(8000, "Message too long"),
@@ -41,7 +43,7 @@ Guidelines:
 
 /**
  * POST /api/ai-assistant
- * Sends user message to OpenAI and returns compliance-focused response
+ * Sends user message to the configured LLM provider and returns compliance-focused response
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await auth();
@@ -62,11 +64,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  const provider = getLLMProvider();
+
+  if (!provider.isConfigured()) {
     return NextResponse.json(
       {
-        error: "AI assistant is not configured. Please set OPENAI_API_KEY environment variable.",
+        error: `AI assistant is not configured. Please set the required API key for the ${provider.name} provider.`,
         code: "MISSING_API_KEY",
       },
       { status: 503 }
@@ -88,38 +91,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ? `${SYSTEM_PROMPT}\n\nAdditional context: ${systemContext}`
       : SYSTEM_PROMPT;
 
-    const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        messages: [
-          { role: "system", content: userSystemPrompt },
-          { role: "user", content: message },
-        ],
+    const llmResponse = await provider.chat(
+      [
+        { role: "system", content: userSystemPrompt },
+        { role: "user", content: message },
+      ],
+      {
+        model: provider.name === "anthropic"
+          ? (process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514")
+          : (process.env.OPENAI_MODEL ?? "gpt-4o-mini"),
         temperature: 0.3,
-        max_tokens: 1200,
-        top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0,
-      }),
-    });
+        maxTokens: 1200,
+        topP: 1,
+      }
+    );
 
-    if (!openaiResponse.ok) {
-      const errorData = await openaiResponse.json().catch(() => ({}));
-      const errorMessage = errorData?.error?.message ?? `OpenAI API error: ${openaiResponse.status}`;
-      console.error("[AI ASSISTANT] OpenAI API error:", errorMessage);
-      return NextResponse.json(
-        { error: "AI service temporarily unavailable. Please try again later." },
-        { status: 502 }
-      );
-    }
-
-    const data = await openaiResponse.json();
-    const content = data.choices?.[0]?.message?.content ?? "";
+    const content = llmResponse.content;
 
     if (!content) {
       return NextResponse.json(
@@ -136,13 +123,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       details: {
         messageLength: message.length,
         responseLength: content.length,
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+        model: llmResponse.model,
+        provider: provider.name,
       },
     });
 
     return NextResponse.json({ response: content });
   } catch (error) {
-    console.error("[AI ASSISTANT] Error:", error);
+    console.error(`[AI ASSISTANT] ${provider.name} error:`, error);
     const message = error instanceof Error ? error.message : "Assistant request failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }

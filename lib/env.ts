@@ -18,23 +18,33 @@ const ENV_VARS: EnvVarSpec[] = [
   { name: "DATABASE_URL", required: true, description: "PostgreSQL connection string" },
   { name: "NEXTAUTH_URL", required: true, description: "Canonical app URL" },
   { name: "NEXTAUTH_SECRET", required: true, description: "NextAuth session encryption secret" },
+  // Payment
   { name: "PAYMENT_GATEWAY", required: false, description: "Active payment gateway (creem|paddle)" },
   { name: "CREEM_API_KEY", required: false, description: "Creem API key" },
-  { name: "CREEM_STORE_ID", required: false, description: "Creem store ID" },
   { name: "CREEM_WEBHOOK_SECRET", required: false, description: "Creem webhook secret" },
-  { name: "PADDLE_VENDOR_ID", required: false, description: "Paddle vendor ID (reserved)" },
   { name: "PADDLE_API_KEY", required: false, description: "Paddle API key (reserved)" },
-  { name: "PADDLE_SANDBOX_VENDOR_ID", required: false, description: "Paddle sandbox vendor ID (reserved)" },
-  { name: "PADDLE_SANDBOX_API_KEY", required: false, description: "Paddle sandbox API key (reserved)" },
   { name: "PADDLE_WEBHOOK_SECRET", required: false, description: "Paddle webhook secret (reserved)" },
+  // LLM / AI
+  { name: "LLM_PROVIDER", required: false, description: "LLM provider (openai|anthropic)" },
+  { name: "OPENAI_API_KEY", required: false, description: "OpenAI API key" },
+  { name: "OPENAI_MODEL", required: false, description: "OpenAI model (default: gpt-4o-mini)" },
+  { name: "ANTHROPIC_API_KEY", required: false, description: "Anthropic API key" },
+  { name: "ANTHROPIC_MODEL", required: false, description: "Anthropic model (default: claude-sonnet-4-20250514)" },
+  // OAuth
   { name: "GOOGLE_CLIENT_ID", required: false, description: "Google OAuth client ID" },
   { name: "GOOGLE_CLIENT_SECRET", required: false, description: "Google OAuth client secret" },
   { name: "GITHUB_CLIENT_ID", required: false, description: "GitHub OAuth client ID" },
   { name: "GITHUB_CLIENT_SECRET", required: false, description: "GitHub OAuth client secret" },
+  // Email
+  { name: "RESEND_API_KEY", required: false, description: "Resend email API key" },
   { name: "SMTP_HOST", required: false, description: "SMTP server hostname" },
   { name: "SMTP_PORT", required: false, description: "SMTP server port" },
   { name: "SMTP_USER", required: false, description: "SMTP username" },
   { name: "SMTP_PASSWORD", required: false, description: "SMTP password" },
+  { name: "SMTP_FROM", required: false, description: "Sender email address" },
+  { name: "SMTP_REPLY_TO", required: false, description: "Reply-to email address" },
+  { name: "SMTP_PROVIDER", required: false, description: "SMTP preset (gmail|outlook|sendgrid...)" },
+  // i18n
   { name: "NEXT_PUBLIC_DEFAULT_LOCALE", required: false, description: "Default locale (default: en)" },
 ];
 

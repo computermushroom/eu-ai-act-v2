@@ -6,6 +6,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
+import {
+  sendWelcomeEmail,
+  sendPaymentFailedEmail,
+  sendRefundEmail,
+} from "@/lib/email";
 import type {
   UnifiedSubscriptionData,
   UnifiedWebhookEvent,
@@ -106,7 +111,7 @@ function getGatewayFieldMapping(_gateway: PaymentGatewayType): GatewayFieldMappi
 
 /**
  * Handle subscription_created event.
- * Creates or updates subscription, sends welcome email (reserved).
+ * Creates or updates subscription, sends welcome email.
  */
 async function handleSubscriptionCreated(
   userId: string,
@@ -117,7 +122,8 @@ async function handleSubscriptionCreated(
   currentPeriodEnd: Date | null,
   gatewayCustomerId: string,
   gatewayProductId: string,
-  gatewayOrderId: string
+  gatewayOrderId: string,
+  customerEmail: string
 ): Promise<void> {
   await prisma.subscription.update({
     where: { id: subscriptionId },
@@ -133,8 +139,19 @@ async function handleSubscriptionCreated(
     },
   });
 
-  // RESERVED: Send welcome email
-  console.log(`[WebhookHandler] Welcome email reserved for user ${userId}`);
+  // Send welcome email (fire-and-forget, non-blocking)
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+    const userName = user?.name ?? "User";
+    void sendWelcomeEmail(customerEmail, userName).catch((err) => {
+      console.error("[WebhookHandler] Failed to send welcome email:", err);
+    });
+  } catch (err) {
+    console.error("[WebhookHandler] Failed to fetch user for welcome email:", err);
+  }
 }
 
 /**
@@ -177,7 +194,7 @@ async function handleSubscriptionExpired(
 
 /**
  * Handle subscription_payment_failed event.
- * Marks subscription as past_due, sends reminder (reserved).
+ * Marks subscription as past_due, sends payment failed reminder.
  */
 async function handleSubscriptionPaymentFailed(
   subscriptionId: string
@@ -189,13 +206,35 @@ async function handleSubscriptionPaymentFailed(
     },
   });
 
-  // RESERVED: Send payment failed reminder
-  console.log(`[WebhookHandler] Payment failed reminder reserved for subscription ${subscriptionId}`);
+  // Send payment failed reminder (fire-and-forget, non-blocking)
+  try {
+    const subscription = await prisma.subscription.findUnique({
+      where: { id: subscriptionId },
+      select: {
+        tier: true,
+        user: {
+          select: { email: true, name: true },
+        },
+      },
+    });
+    if (subscription?.user.email) {
+      const userName = subscription.user.name ?? "User";
+      void sendPaymentFailedEmail(
+        subscription.user.email,
+        userName,
+        subscription.tier
+      ).catch((err) => {
+        console.error("[WebhookHandler] Failed to send payment failed email:", err);
+      });
+    }
+  } catch (err) {
+    console.error("[WebhookHandler] Failed to fetch subscription for payment failed email:", err);
+  }
 }
 
 /**
  * Handle subscription_refunded event.
- * Marks subscription as refunded, downgrades to free (reserved).
+ * Marks subscription as refunded, downgrades to free, sends refund notification.
  */
 async function handleSubscriptionRefunded(
   subscriptionId: string
@@ -209,8 +248,30 @@ async function handleSubscriptionRefunded(
     },
   });
 
-  // RESERVED: Process refund notification
-  console.log(`[WebhookHandler] Refund notification reserved for subscription ${subscriptionId}`);
+  // Send refund notification (fire-and-forget, non-blocking)
+  try {
+    const subscription = await prisma.subscription.findUnique({
+      where: { id: subscriptionId },
+      select: {
+        tier: true,
+        user: {
+          select: { email: true, name: true },
+        },
+      },
+    });
+    if (subscription?.user.email) {
+      const userName = subscription.user.name ?? "User";
+      void sendRefundEmail(
+        subscription.user.email,
+        userName,
+        subscription.tier
+      ).catch((err) => {
+        console.error("[WebhookHandler] Failed to send refund email:", err);
+      });
+    }
+  } catch (err) {
+    console.error("[WebhookHandler] Failed to fetch subscription for refund email:", err);
+  }
 }
 
 // ============================================================
@@ -222,13 +283,13 @@ async function handleSubscriptionRefunded(
  * This is the main entry point after webhook verification.
  *
  * Handles all event types with differentiated logic:
- * - subscription_created: Creates/updates subscription, welcome email (reserved)
+ * - subscription_created: Creates/updates subscription, sends welcome email
  * - subscription_updated: Updates subscription status/tier
  * - subscription_cancelled: Sets cancelledAt, downgrades to free if expired
  * - subscription_expired: Downgrades to free tier
  * - subscription_paused: Marks subscription as paused
- * - subscription_payment_failed: Marks as past_due, sends reminder (reserved)
- * - subscription_refunded: Marks as refunded, downgrades to free (reserved)
+ * - subscription_payment_failed: Marks as past_due, sends payment failed reminder
+ * - subscription_refunded: Marks as refunded, downgrades to free, sends refund notification
  *
  * Idempotent: Uses gateway + gatewaySubscriptionId for unique identification.
  * If a subscription with the same gateway ID already exists, it will be updated
@@ -343,7 +404,8 @@ export async function processWebhookData(
           currentPeriodEnd,
           gatewayCustomerId,
           gatewayProductId,
-          gatewayOrderId
+          gatewayOrderId,
+          customerEmail
         );
         break;
 
