@@ -12,6 +12,19 @@ datasource db {
 }
 
 /**
+ * Global Configuration model
+ * Stores runtime-configurable settings (e.g. active payment gateway)
+ * Single-row key-value store — no restart required for changes to take effect
+ */
+model GlobalConfig {
+  configKey   String   @id @db.VarChar(64)
+  configValue String   @db.Text
+  updatedAt   DateTime @updatedAt
+
+  @@map("global_config")
+}
+
+/**
  * User account model
  * Minimal data collection per GDPR principles
  * Supports: account deletion, data export
@@ -118,6 +131,11 @@ model Subscription {
 
   // Payment gateway type
   gateway PaymentGateway?
+
+  // Payment provider that originated this subscription (immutable after creation)
+  // Tracks which gateway the customer originally subscribed through
+  // Values: "paddle" | "creem" — defaults to "paddle"
+  paymentProvider String @default("paddle") @db.VarChar(16)
 
   // Subscription details
   status SubscriptionStatus @default(inactive)
