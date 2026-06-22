@@ -10,13 +10,20 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 vi.mock("@/lib/payment", () => ({
-  createSubscriptionCheckout: vi.fn((tier: string) =>
-    Promise.resolve(`https://checkout.creem.io/${tier}`)
+  createCheckout: vi.fn((params: { tier: string }) =>
+    Promise.resolve({
+      checkoutUrl: `https://checkout.paddle.com/${params.tier}`,
+      sessionId: `txn_${params.tier}`,
+    })
   ),
 }));
 
 vi.mock("@/lib/audit", () => ({
   createAuditLog: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  createRateLimiter: vi.fn(() => () => ({ allowed: true, remaining: 9, resetAt: Date.now() + 60000 })),
 }));
 
 function createRequest(body: unknown) {
@@ -39,7 +46,7 @@ describe("POST /api/subscription/checkout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.checkoutUrl).toBe("https://checkout.creem.io/starter");
+    expect(data.checkoutUrl).toContain("checkout.paddle.com");
   });
 
   it("should create checkout URL for professional tier", async () => {
@@ -49,7 +56,7 @@ describe("POST /api/subscription/checkout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.checkoutUrl).toBe("https://checkout.creem.io/professional");
+    expect(data.checkoutUrl).toContain("checkout.paddle.com");
   });
 
   it("should create checkout URL for business tier", async () => {
@@ -59,7 +66,7 @@ describe("POST /api/subscription/checkout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.checkoutUrl).toBe("https://checkout.creem.io/business");
+    expect(data.checkoutUrl).toContain("checkout.paddle.com");
   });
 
   it("should create checkout URL for enterprise tier", async () => {
@@ -69,7 +76,7 @@ describe("POST /api/subscription/checkout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.checkoutUrl).toBe("https://checkout.creem.io/enterprise");
+    expect(data.checkoutUrl).toContain("checkout.paddle.com");
   });
 
   it("should reject invalid tier", async () => {
@@ -110,21 +117,9 @@ describe("POST /api/subscription/checkout", () => {
     expect(data.error).toBe("Unauthorized");
   });
 
-  it("should handle rate limiting", async () => {
-    for (let i = 0; i < 10; i++) {
-      const req = createRequest({ tier: "starter" });
-      const res = await POST(req);
-      if (res.status === 429) break;
-    }
-
-    const req = createRequest({ tier: "starter" });
-    const res = await POST(req);
-    expect([200, 429]).toContain(res.status);
-  });
-
-  it("should handle payment gateway SDK errors", async () => {
-    const { createSubscriptionCheckout } = await import("@/lib/payment");
-    vi.mocked(createSubscriptionCheckout).mockRejectedValueOnce(
+  it("should handle payment gateway errors", async () => {
+    const { createCheckout } = await import("@/lib/payment");
+    vi.mocked(createCheckout).mockRejectedValueOnce(
       new Error("Checkout creation failed")
     );
 

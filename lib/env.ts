@@ -18,12 +18,12 @@ const ENV_VARS: EnvVarSpec[] = [
   { name: "DATABASE_URL", required: true, description: "PostgreSQL connection string" },
   { name: "NEXTAUTH_URL", required: true, description: "Canonical app URL" },
   { name: "NEXTAUTH_SECRET", required: true, description: "NextAuth session encryption secret" },
-  // Payment
-  { name: "PAYMENT_GATEWAY", required: false, description: "Active payment gateway (creem|paddle)" },
-  { name: "CREEM_API_KEY", required: false, description: "Creem API key" },
-  { name: "CREEM_WEBHOOK_SECRET", required: false, description: "Creem webhook secret" },
-  { name: "PADDLE_API_KEY", required: false, description: "Paddle API key (reserved)" },
-  { name: "PADDLE_WEBHOOK_SECRET", required: false, description: "Paddle webhook secret (reserved)" },
+  // Payment (gateway is now controlled via GlobalConfig table, not env var)
+  { name: "CREEM_API_KEY", required: false, description: "Creem API key (backup gateway)" },
+  { name: "CREEM_WEBHOOK_SECRET", required: false, description: "Creem webhook secret (backup gateway)" },
+  { name: "PADDLE_API_KEY", required: false, description: "Paddle API key (primary gateway)" },
+  { name: "PADDLE_WEBHOOK_SECRET", required: false, description: "Paddle webhook secret (primary gateway)" },
+  { name: "ADMIN_EMAILS", required: false, description: "Comma-separated admin emails for /admin access" },
   // LLM / AI
   { name: "LLM_PROVIDER", required: false, description: "LLM provider (openai|anthropic)" },
   { name: "OPENAI_API_KEY", required: false, description: "OpenAI API key" },
