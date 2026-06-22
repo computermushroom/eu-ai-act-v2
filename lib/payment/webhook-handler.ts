@@ -3,6 +3,7 @@
 // Writes subscription updates to the database via Prisma
 // Idempotent: uses gateway + gatewaySubscriptionId for deduplication
 // Writes audit logs for all subscription state changes
+// Records payment_provider on every subscription for financial reconciliation
 
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
@@ -360,6 +361,7 @@ export async function processWebhookData(
     // Upsert subscription record
     // Uses gateway subscription ID for idempotency
     // All gateways use the unified gatewaySubscriptionId field
+    // paymentProvider is set on creation and never changed (data isolation rule)
     const subscription = await prisma.subscription.upsert({
       where: {
         gatewaySubscriptionId: gatewaySubscriptionId,
@@ -375,6 +377,8 @@ export async function processWebhookData(
         currentPeriodStart,
         currentPeriodEnd,
         cancelledAt: prismaStatus === "cancelled" ? new Date() : null,
+        paymentProvider: gateway,
+        gateway: gateway,
       },
       update: {
         gatewayCustomerId: gatewayCustomerId,
@@ -388,6 +392,8 @@ export async function processWebhookData(
           prismaStatus === "cancelled"
             ? new Date()
             : undefined, // Don't clear cancelledAt on non-cancel updates
+        // NOTE: paymentProvider is NOT updated — data isolation rule:
+        // historical subscriptions permanently retain their original provider
       },
     });
 

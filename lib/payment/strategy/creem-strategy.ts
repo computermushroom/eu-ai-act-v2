@@ -1,13 +1,13 @@
-// Creem Payment Gateway Adapter
-// Implements PaymentGateway interface for Creem.io
+// Creem Payment Strategy
+// Implements BasePaymentStrategy for Creem.io (backup gateway)
 // All API calls use native fetch - no external SDK dependency
-// Environment variables: CREEM_API_KEY, CREEM_WEBHOOK_SECRET
+// Environment variables: CREEM_API_KEY, CREEM_WEBHOOK_SECRET,
 //                        CREEM_STARTER_PRODUCT_ID, CREEM_PROFESSIONAL_PRODUCT_ID,
 //                        CREEM_BUSINESS_PRODUCT_ID, CREEM_ENTERPRISE_PRODUCT_ID
 
 import crypto from "crypto";
 import type {
-  PaymentGateway,
+  BasePaymentStrategy,
   PaymentTier,
   CheckoutParams,
   CheckoutResult,
@@ -15,24 +15,14 @@ import type {
   UnifiedSubscriptionData,
   UnifiedWebhookEvent,
   UnifiedSubscriptionStatus,
-} from "./types";
+} from "../types";
+import { getPlanId } from "../plan-map";
 
 // ============================================================
 // Creem API Configuration
 // ============================================================
 
 const CREEM_API_BASE = "https://api.creem.io/v1";
-
-/** Map subscription tiers to Creem product IDs from environment variables */
-function getCreemProductId(tier: PaymentTier): string {
-  const productIds: Record<PaymentTier, string> = {
-    starter: process.env.CREEM_STARTER_PRODUCT_ID ?? "",
-    professional: process.env.CREEM_PROFESSIONAL_PRODUCT_ID ?? "",
-    business: process.env.CREEM_BUSINESS_PRODUCT_ID ?? "",
-    enterprise: process.env.CREEM_ENTERPRISE_PRODUCT_ID ?? "",
-  };
-  return productIds[tier];
-}
 
 // ============================================================
 // Creem Webhook Event Mapping
@@ -77,7 +67,6 @@ function mapCreemStatus(rawStatus: string): UnifiedSubscriptionStatus {
     paused: "paused",
     unpaid: "unpaid",
     trialing: "active",
-    // Creem-specific statuses mapped to closest unified status
     pending: "inactive",
     failed: "past_due",
   };
@@ -106,10 +95,10 @@ function mapCreemTier(productName: string): PaymentTier {
 }
 
 // ============================================================
-// Creem Adapter Implementation
+// Creem Strategy Implementation
 // ============================================================
 
-export class CreemAdapter implements PaymentGateway {
+export class CreemStrategy implements BasePaymentStrategy {
   readonly gateway = "creem" as const;
 
   /** Check if Creem is properly configured with required credentials */
@@ -129,7 +118,7 @@ export class CreemAdapter implements PaymentGateway {
       throw new Error("Creem is not configured: missing CREEM_API_KEY");
     }
 
-    const productId = getCreemProductId(params.tier);
+    const productId = getPlanId(params.tier, "creem");
     if (!productId) {
       throw new Error(`Creem product ID not configured for tier: ${params.tier}`);
     }

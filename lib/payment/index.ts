@@ -1,27 +1,42 @@
-// Payment Gateway Manager
-// Routes to the active gateway based on PAYMENT_GATEWAY env var
-// Singleton pattern - getPaymentGateway() returns the active adapter
+// Payment Module - Public API
+// All payment operations are routed through PaymentContext
+// which reads the active gateway from GlobalConfig (runtime, no restart)
+//
+// UPPER LAYER CODE: import from "@/lib/payment" and use:
+//   - createCheckout(params)     — create a checkout session
+//   - getPaymentProviderInfo()   — get active gateway info for frontend
+//   - getActiveProvider()        — read current active gateway
+//   - setActiveProvider(gateway)  — update active gateway (admin only)
+//   - getStrategyByType(type)    — get specific strategy (webhook use)
+//   - verifyWebhook(body, hdrs, type) — verify webhook (webhook use)
 
-import type { PaymentGateway, PaymentGatewayType } from "./types";
-import { CreemAdapter } from "./creem-adapter";
-import { PaddleAdapter } from "./paddle-adapter";
+// Re-export everything from payment-context (primary entry point)
+export {
+  createCheckout,
+  getPaymentProviderInfo,
+  getActiveProvider,
+  setActiveProvider,
+  getStrategyByType,
+  verifyWebhook,
+} from "./payment-context";
 
-/** Get the active payment gateway based on PAYMENT_GATEWAY env var */
-export function getPaymentGateway(): PaymentGateway {
-  const gateway = (process.env.PAYMENT_GATEWAY ?? "creem") as PaymentGatewayType;
+// Re-export types for external consumers
+export type {
+  PaymentGatewayType,
+  PaymentTier,
+  BillingCycle,
+  UnifiedSubscriptionStatus,
+  UnifiedWebhookEvent,
+  CheckoutParams,
+  CheckoutResult,
+  UnifiedSubscriptionData,
+  WebhookVerifyResult,
+  PaymentProviderInfo,
+  BasePaymentStrategy,
+} from "./types";
 
-  switch (gateway) {
-    case "creem":
-      return new CreemAdapter();
-    case "paddle":
-      return new PaddleAdapter();
-    default:
-      console.warn(`Unknown PAYMENT_GATEWAY: ${gateway}, falling back to creem`);
-      return new CreemAdapter();
-  }
-}
+// Re-export plan mapping utilities
+export { PLAN_MAP, getPlanId, getPlanMapping } from "./plan-map";
 
-/** Get the active gateway type */
-export function getActiveGatewayType(): PaymentGatewayType {
-  return (process.env.PAYMENT_GATEWAY ?? "creem") as PaymentGatewayType;
-}
+// Re-export webhook handler (used by webhook routes)
+export { processWebhookData } from "./webhook-handler";

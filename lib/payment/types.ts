@@ -1,9 +1,10 @@
 // Payment Gateway Types
-// Unified type definitions for Creem + Paddle dual-gateway architecture
-// All gateways implement the same PaymentGateway interface
+// Unified type definitions for Paddle + Creem dual-gateway architecture
+// All gateways implement the same BasePaymentStrategy interface
+// Default primary gateway: Paddle; Backup: Creem
 
 /** Supported payment gateway identifiers */
-export type PaymentGatewayType = "creem" | "paddle";
+export type PaymentGatewayType = "paddle" | "creem";
 
 /** Subscription tier identifiers */
 export type PaymentTier = "starter" | "professional" | "business" | "enterprise";
@@ -54,7 +55,7 @@ export interface CheckoutResult {
 
 /** Standardized subscription data from webhook */
 export interface UnifiedSubscriptionData {
-  /** Gateway identifier (creem/paddle) */
+  /** Gateway identifier (paddle/creem) */
   gateway: PaymentGatewayType;
   /** Gateway-specific subscription ID */
   gatewaySubscriptionId: string;
@@ -87,12 +88,23 @@ export interface WebhookVerifyResult {
   data: UnifiedSubscriptionData;
 }
 
-/** Payment gateway adapter interface */
-export interface PaymentGateway {
+/** Payment provider info for frontend SDK loading */
+export interface PaymentProviderInfo {
+  /** Active gateway identifier */
+  activeGateway: PaymentGatewayType;
+  /** Whether the active gateway is properly configured */
+  isConfigured: boolean;
+}
+
+/**
+ * Abstract base payment strategy interface
+ * All gateway implementations (Paddle, Creem) must implement this interface
+ */
+export interface BasePaymentStrategy {
   /** Gateway identifier */
   readonly gateway: PaymentGatewayType;
 
-  /** Whether this gateway is configured and ready to use */
+  /** Whether this gateway is configured with required credentials */
   readonly isConfigured: boolean;
 
   /** Create a checkout session */

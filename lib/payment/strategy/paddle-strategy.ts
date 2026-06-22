@@ -1,16 +1,13 @@
-// Paddle Payment Gateway Adapter (Reserved - Not Active)
-// Implements PaymentGateway interface for Paddle Billing (new version)
-// All methods throw errors when credentials are not configured.
-// Complete Paddle API integration code is included but will not execute
-// until PADDLE_API_KEY (or PADDLE_API_KEY_SANDBOX) is set in environment.
-//
-// Environment variables: PADDLE_API_KEY, PADDLE_API_KEY_SANDBOX, PADDLE_WEBHOOK_SECRET
+// Paddle Payment Strategy
+// Implements BasePaymentStrategy for Paddle Billing (primary gateway)
+// All API calls use native fetch - no external SDK dependency
+// Environment variables: PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET,
 //                        PADDLE_STARTER_PRICE_ID, PADDLE_PROFESSIONAL_PRICE_ID,
 //                        PADDLE_BUSINESS_PRICE_ID, PADDLE_ENTERPRISE_PRICE_ID
 
 import crypto from "crypto";
 import type {
-  PaymentGateway,
+  BasePaymentStrategy,
   PaymentTier,
   CheckoutParams,
   CheckoutResult,
@@ -18,25 +15,14 @@ import type {
   UnifiedSubscriptionData,
   UnifiedWebhookEvent,
   UnifiedSubscriptionStatus,
-} from "./types";
+} from "../types";
+import { getPlanId } from "../plan-map";
 
 // ============================================================
 // Paddle API Configuration
 // ============================================================
 
-/* PADDLE: 预留代码 - 后期启用 */
 const PADDLE_API_BASE = "https://api.paddle.com";
-
-/** Map subscription tiers to Paddle price IDs from environment variables */
-function getPaddlePriceId(tier: PaymentTier): string {
-  const priceIds: Record<PaymentTier, string> = {
-    starter: process.env.PADDLE_STARTER_PRICE_ID ?? "",
-    professional: process.env.PADDLE_PROFESSIONAL_PRICE_ID ?? "",
-    business: process.env.PADDLE_BUSINESS_PRICE_ID ?? "",
-    enterprise: process.env.PADDLE_ENTERPRISE_PRICE_ID ?? "",
-  };
-  return priceIds[tier];
-}
 
 /** Get the active API key (production or sandbox) */
 function getPaddleApiKey(): string | undefined {
@@ -51,7 +37,6 @@ function getPaddleApiKey(): string | undefined {
  * Maps Paddle raw webhook event names to unified event types.
  * Paddle Billing uses dot-separated event names like "subscription.created".
  */
-/* PADDLE: 预留代码 - 后期启用 */
 function mapPaddleEvent(rawEvent: string): UnifiedWebhookEvent | null {
   const eventMap: Record<string, UnifiedWebhookEvent> = {
     "subscription.created": "subscription_created",
@@ -75,7 +60,6 @@ function mapPaddleEvent(rawEvent: string): UnifiedWebhookEvent | null {
 /**
  * Maps Paddle subscription status to unified subscription status.
  */
-/* PADDLE: 预留代码 - 后期启用 */
 function mapPaddleStatus(rawStatus: string): UnifiedSubscriptionStatus {
   const statusMap: Record<string, UnifiedSubscriptionStatus> = {
     active: "active",
@@ -87,7 +71,6 @@ function mapPaddleStatus(rawStatus: string): UnifiedSubscriptionStatus {
     paused: "paused",
     unpaid: "unpaid",
     trialing: "active",
-    // Paddle-specific statuses
     pending: "inactive",
     deleting: "cancelled",
   };
@@ -98,7 +81,6 @@ function mapPaddleStatus(rawStatus: string): UnifiedSubscriptionStatus {
  * Maps Paddle product/plan name to PaymentTier.
  * Falls back to "starter" if no match is found.
  */
-/* PADDLE: 预留代码 - 后期启用 */
 function mapPaddleTier(productName: string): PaymentTier {
   const tierMap: Record<string, PaymentTier> = {
     starter: "starter",
@@ -117,10 +99,10 @@ function mapPaddleTier(productName: string): PaymentTier {
 }
 
 // ============================================================
-// Paddle Adapter Implementation
+// Paddle Strategy Implementation
 // ============================================================
 
-export class PaddleAdapter implements PaymentGateway {
+export class PaddleStrategy implements BasePaymentStrategy {
   readonly gateway = "paddle" as const;
 
   /**
@@ -134,7 +116,6 @@ export class PaddleAdapter implements PaymentGateway {
 
   /**
    * Create a Paddle Billing checkout session.
-   * PADDLE: 预留代码 - 后期启用
    *
    * Paddle Billing checkout flow:
    * 1. Create a customer (POST /customers) to get customer_id
@@ -148,8 +129,7 @@ export class PaddleAdapter implements PaymentGateway {
       throw new Error("Paddle is not configured: missing PADDLE_API_KEY or PADDLE_API_KEY_SANDBOX");
     }
 
-    /* PADDLE: 预留代码 - 后期启用 */
-    const priceId = getPaddlePriceId(params.tier);
+    const priceId = getPlanId(params.tier, "paddle");
     if (!priceId) {
       throw new Error(`Paddle price ID not configured for tier: ${params.tier}`);
     }
@@ -173,7 +153,6 @@ export class PaddleAdapter implements PaymentGateway {
 
   /**
    * Verify Paddle webhook signature and parse payload.
-   * PADDLE: 预留代码 - 后期启用
    *
    * Paddle signs webhooks with HMAC-SHA256 using the webhook secret.
    * The signature is in the Paddle-Signature header with format:
@@ -188,8 +167,6 @@ export class PaddleAdapter implements PaymentGateway {
     if (!webhookSecret) {
       throw new Error("Paddle is not configured: missing PADDLE_WEBHOOK_SECRET");
     }
-
-    /* PADDLE: 预留代码 - 后期启用 */
 
     // 1. Verify HMAC-SHA256 signature
     const paddleSignature = headers.get("Paddle-Signature") ?? "";
@@ -279,16 +256,13 @@ export class PaddleAdapter implements PaymentGateway {
   }
 
   // ============================================================
-  // Paddle API Helper Methods (Reserved)
+  // Paddle API Helper Methods
   // ============================================================
 
   /**
    * Create a Paddle customer.
-   * PADDLE: 预留代码 - 后期启用
-   *
    * POST https://api.paddle.com/customers
    */
-  /* PADDLE: 预留代码 - 后期启用 */
   private async createPaddleCustomer(
     apiKey: string,
     params: CheckoutParams
@@ -319,11 +293,8 @@ export class PaddleAdapter implements PaymentGateway {
 
   /**
    * Create a Paddle transaction (checkout session).
-   * PADDLE: 预留代码 - 后期启用
-   *
    * POST https://api.paddle.com/transactions
    */
-  /* PADDLE: 预留代码 - 后期启用 */
   private async createPaddleTransaction(
     apiKey: string,
     priceId: string,
@@ -344,7 +315,7 @@ export class PaddleAdapter implements PaymentGateway {
           },
         ],
         customer_id: customerId,
-        collection_mode: params.billingCycle === "yearly" ? "automatic" : "automatic",
+        collection_mode: "automatic",
         custom_data: {
           user_id: params.userId,
           tier: params.tier,
@@ -379,9 +350,7 @@ export class PaddleAdapter implements PaymentGateway {
 
   /**
    * Parse Paddle subscription event data into UnifiedSubscriptionData.
-   * PADDLE: 预留代码 - 后期启用
    */
-  /* PADDLE: 预留代码 - 后期启用 */
   private parseSubscriptionData(
     eventData: Record<string, unknown>,
     rawEvent: string
@@ -438,9 +407,7 @@ export class PaddleAdapter implements PaymentGateway {
 
   /**
    * Create an empty UnifiedSubscriptionData placeholder for invalid webhooks.
-   * PADDLE: 预留代码 - 后期启用
    */
-  /* PADDLE: 预留代码 - 后期启用 */
   private createEmptyData(): UnifiedSubscriptionData {
     return {
       gateway: "paddle",
