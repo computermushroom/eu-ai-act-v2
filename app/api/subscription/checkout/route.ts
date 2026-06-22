@@ -1,11 +1,13 @@
 // Subscription Checkout API
 // POST: Creates a checkout URL for the selected tier via the active payment gateway
+// The active gateway is read from GlobalConfig table (runtime, no restart needed)
+// Default: Paddle (primary); Fallback: Creem (backup, admin-switchable)
 // Rate-limited to 10 requests/minute per IP
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { getPaymentGateway } from "@/lib/payment";
+import { createCheckout } from "@/lib/payment";
 import type { PaymentTier, BillingCycle } from "@/lib/payment/types";
 import { createAuditLog } from "@/lib/audit";
 import { createRateLimiter } from "@/lib/rate-limit";
@@ -20,6 +22,7 @@ const limiter = createRateLimiter("auth");
 /**
  * POST /api/subscription/checkout
  * Creates a checkout URL for the selected subscription tier
+ * Uses the globally configured active payment gateway
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await auth();
@@ -37,15 +40,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Check if payment gateway is configured
-  const gateway = getPaymentGateway();
-  if (!gateway.isConfigured) {
-    return NextResponse.json(
-      { error: "Payment gateway is not configured. Please contact support." },
-      { status: 503 }
-    );
-  }
-
   try {
     const body = await request.json();
     const parsed = checkoutSchema.safeParse(body);
@@ -59,7 +53,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const redirectUrl = `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/dashboard`;
 
-    const checkoutResult = await gateway.createCheckout({
+    // Create checkout via PaymentContext (reads active gateway from GlobalConfig)
+    const checkoutResult = await createCheckout({
       tier: tier as PaymentTier,
       billingCycle: billingCycle as BillingCycle,
       userEmail: session.user.email,
