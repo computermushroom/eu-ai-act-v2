@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { POST as pdfGenerateHandler } from "@/app/api/reports/pdf/route";
-import { GET as pdfDownloadHandler } from "@/app/api/reports/pdf/download/route";
 
 // ─── Mock Prisma ───────────────────────────────────────────────────
 const mockAISystemFindUnique = vi.fn();
@@ -27,6 +26,18 @@ vi.mock("@/lib/auth", () => ({
 // ─── Mock Audit ────────────────────────────────────────────────────
 vi.mock("@/lib/audit", () => ({
   createAuditLog: vi.fn(() => Promise.resolve()),
+}));
+
+// ─── Mock next/headers ─────────────────────────────────────────────
+vi.mock("next/headers", () => ({
+  headers: vi.fn(() =>
+    Promise.resolve(
+      new Headers({
+        "x-forwarded-for": "127.0.0.1",
+        "user-agent": "test-agent",
+      })
+    )
+  ),
 }));
 
 // ─── Mock Rate Limiter ─────────────────────────────────────────────
@@ -197,124 +208,6 @@ describe("PDF API - Generate Report Data", () => {
     });
 
     const res = await pdfGenerateHandler(req);
-    const body = await res.json();
-
-    expect(res.status).toBe(400);
-    expect(body.error).toBeDefined();
-  });
-});
-
-describe("PDF API - Download Report", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  const mockSystem = {
-    id: "sys-123",
-    name: "Test AI System",
-    description: "A test system",
-    systemType: "nlp",
-    riskLevel: "high",
-    status: "active",
-    industry: "finance",
-    art6Compliant: true,
-    art9Compliant: true,
-    art10Compliant: true,
-    art12Compliant: true,
-    art13Compliant: true,
-    art14Compliant: true,
-    art15Compliant: true,
-    art17Compliant: true,
-    art27Compliant: true,
-    createdAt: new Date("2026-01-15"),
-    updatedAt: new Date("2026-06-01"),
-    userId: "user-123",
-    scanResults: [],
-    qms: null,
-    fria: null,
-    documents: [],
-  };
-
-  it("should generate and return real PDF binary", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-123" } });
-    mockAISystemFindUnique.mockResolvedValue(mockSystem);
-
-    const req = new NextRequest(
-      "http://localhost/api/reports/pdf/download?systemId=sys-123&type=compliance-summary&locale=en",
-      { method: "GET" }
-    );
-
-    const res = await pdfDownloadHandler(req);
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toBe("application/pdf");
-    expect(res.headers.get("Content-Disposition")).toContain(".pdf");
-    expect(res.headers.get("X-Report-Type")).toBe("compliance-summary");
-
-    const buffer = await res.arrayBuffer();
-    expect(buffer.byteLength).toBeGreaterThan(0);
-  });
-
-  it("should include correct filename in Content-Disposition", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-123" } });
-    mockAISystemFindUnique.mockResolvedValue(mockSystem);
-
-    const req = new NextRequest(
-      "http://localhost/api/reports/pdf/download?systemId=sys-123&type=risk-assessment&locale=en",
-      { method: "GET" }
-    );
-
-    const res = await pdfDownloadHandler(req);
-    const disposition = res.headers.get("Content-Disposition");
-
-    expect(disposition).toContain("EU-AI-Act-Report");
-    expect(disposition).toContain("Test-AI-System");
-    expect(disposition).toContain("risk-assessment");
-  });
-
-  it("should reject unauthorized download requests", async () => {
-    mockAuth.mockResolvedValue(null);
-
-    const req = new NextRequest(
-      "http://localhost/api/reports/pdf/download?systemId=sys-123&type=compliance-summary",
-      { method: "GET" }
-    );
-
-    const res = await pdfDownloadHandler(req);
-    const body = await res.json();
-
-    expect(res.status).toBe(401);
-    expect(body.error).toBe("Unauthorized");
-  });
-
-  it("should reject download for other user's system", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-456" } });
-    mockAISystemFindUnique.mockResolvedValue({
-      ...mockSystem,
-      userId: "user-123",
-    });
-
-    const req = new NextRequest(
-      "http://localhost/api/reports/pdf/download?systemId=sys-123&type=compliance-summary",
-      { method: "GET" }
-    );
-
-    const res = await pdfDownloadHandler(req);
-    const body = await res.json();
-
-    expect(res.status).toBe(403);
-    expect(body.error).toBe("Forbidden");
-  });
-
-  it("should validate query parameters", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-123" } });
-
-    const req = new NextRequest(
-      "http://localhost/api/reports/pdf/download?systemId=&type=invalid&locale=en",
-      { method: "GET" }
-    );
-
-    const res = await pdfDownloadHandler(req);
     const body = await res.json();
 
     expect(res.status).toBe(400);

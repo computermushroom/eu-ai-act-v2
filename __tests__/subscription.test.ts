@@ -41,13 +41,13 @@ vi.mock("@/lib/rate-limit", () => ({
 
 // ─── Mock Payment Module ────────────────────────────────────────────
 const mockCreateCheckout = vi.fn();
-const mockVerifyWebhook = vi.fn();
-const mockProcessWebhookData = vi.fn();
+const mockVerifyWebhookSignature = vi.fn();
+const mockProcessWebhook = vi.fn();
 
 vi.mock("@/lib/payment", () => ({
   createCheckout: (...args: unknown[]) => mockCreateCheckout(...args),
-  verifyWebhook: (...args: unknown[]) => mockVerifyWebhook(...args),
-  processWebhookData: (...args: unknown[]) => mockProcessWebhookData(...args),
+  verifyWebhookSignature: (...args: unknown[]) => mockVerifyWebhookSignature(...args),
+  processWebhook: (...args: unknown[]) => mockProcessWebhook(...args),
 }));
 
 function createJsonRequest(body: unknown, opts?: { headers?: Record<string, string> }): NextRequest {
@@ -132,25 +132,10 @@ describe("FastSpring Webhook Handler", () => {
   });
 
   it("should process valid FastSpring webhook", async () => {
-    mockVerifyWebhook.mockResolvedValue({
-      valid: true,
-      event: "order.completed",
-      data: {
-        gateway: "fastspring",
-        gatewaySubscriptionId: "sub_123",
-        gatewayCustomerId: "ctm_123",
-        gatewayProductId: "path_123",
-        gatewayOrderId: "ord_123",
-        customerEmail: "test@example.com",
-        tier: "professional",
-        status: "active",
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        testMode: true,
-        rawEvent: "order.completed",
-      },
-    });
-    mockProcessWebhookData.mockResolvedValue(undefined);
+    // verifyWebhookSignature(payload: string, signature: string): boolean
+    mockVerifyWebhookSignature.mockReturnValue(true);
+    // processWebhook(payload: FastSpringWebhookPayload): { processed: number; errors: Error[] }
+    mockProcessWebhook.mockResolvedValue({ processed: 1, errors: [] });
 
     const req = new NextRequest("http://localhost/api/payment/webhook/fastspring", {
       method: "POST",
@@ -165,30 +150,26 @@ describe("FastSpring Webhook Handler", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.received).toBe(true);
-    expect(mockProcessWebhookData).toHaveBeenCalled();
+    expect(body.success).toBe(true);
+    expect(body.processed).toBe(1);
+    expect(mockProcessWebhook).toHaveBeenCalled();
   });
 
   it("should reject invalid FastSpring signature", async () => {
-    mockVerifyWebhook.mockResolvedValue({
-      valid: false,
-      event: "order.completed",
-      data: {
-        gateway: "fastspring",
-        gatewaySubscriptionId: "",
-        gatewayCustomerId: "",
-        gatewayProductId: "",
-        gatewayOrderId: "",
-        customerEmail: "",
-        tier: "starter",
-        status: "inactive",
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: null,
-        testMode: false,
-        rawEvent: "",
-      },
+    // verifyWebhookSignature returns false for invalid signature
+    mockVerifyWebhookSignature.mockReturnValue(false);
+
+    const req = new NextRequest("http://localhost/api/payment/webhook/fastspring", {
+      method: "POST",
+      body: JSON.stringify({}),
+      headers: { "Content-Type": "application/json", "X-FS-Signature": "invalidsignature" },
     });
 
+    const res = await webhookHandler(req);
+    expect(res.status).toBe(401);
+  });
+
+  it("should reject missing signature header", async () => {
     const req = new NextRequest("http://localhost/api/payment/webhook/fastspring", {
       method: "POST",
       body: JSON.stringify({}),
@@ -196,7 +177,7 @@ describe("FastSpring Webhook Handler", () => {
     });
 
     const res = await webhookHandler(req);
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
   });
 });
 

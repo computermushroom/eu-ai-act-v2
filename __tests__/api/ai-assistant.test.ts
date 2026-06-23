@@ -167,7 +167,7 @@ describe("POST /api/ai-assistant", () => {
 
       const req = createJsonRequest({});
       const res = await POST(req);
-      const body = await res.json();
+      await res.json();
 
       expect(res.status).toBe(400);
     });
@@ -218,9 +218,9 @@ describe("POST /api/ai-assistant", () => {
       });
       await POST(req);
 
-      const messages = mockProvider.chat.mock.calls[0][0];
-      const systemMessage = messages.find((m: { role: string }) => m.role === "system");
-      expect(systemMessage.content).toContain("Additional context: We are a healthcare company");
+      const messages = mockProvider.chat.mock.calls[0]?.[0];
+      const systemMessage = messages?.find((m: { role: string }) => m.role === "system");
+      expect(systemMessage?.content).toContain("Additional context: We are a healthcare company");
     });
   });
 

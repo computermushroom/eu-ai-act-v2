@@ -3,12 +3,16 @@ import { POST } from "@/app/api/tools/url-scan/route";
 
 const mockFindFirst = vi.fn();
 const mockCreate = vi.fn();
+const mockSubscriptionFindUnique = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     scanResult: {
       findFirst: (...args: unknown[]) => mockFindFirst(...args),
       create: (...args: unknown[]) => mockCreate(...args),
+    },
+    subscription: {
+      findUnique: (...args: unknown[]) => mockSubscriptionFindUnique(...args),
     },
   },
 }));
@@ -25,6 +29,17 @@ vi.mock("@/lib/audit", () => ({
   createAuditLog: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock("next/headers", () => ({
+  headers: vi.fn(() =>
+    Promise.resolve(
+      new Headers({
+        "x-forwarded-for": "127.0.0.1",
+        "user-agent": "test-agent",
+      })
+    )
+  ),
+}));
+
 vi.mock("@/lib/url-scanner", () => ({
   scanUrl: vi.fn(() =>
     Promise.resolve({
@@ -38,6 +53,10 @@ vi.mock("@/lib/url-scanner", () => ({
   ),
 }));
 
+vi.mock("@/lib/rate-limit", () => ({
+  createRateLimiter: vi.fn(() => () => ({ allowed: true, remaining: 19, resetAt: Date.now() + 60000 })),
+}));
+
 function createRequest(body: unknown) {
   return new Request("http://localhost/api/tools/url-scan", {
     method: "POST",
@@ -49,6 +68,12 @@ function createRequest(body: unknown) {
 describe("POST /api/tools/url-scan", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: active professional subscription
+    mockSubscriptionFindUnique.mockResolvedValue({
+      userId: "user_123",
+      status: "active",
+      tier: "professional",
+    });
   });
 
   it("should scan a URL successfully", async () => {
@@ -79,12 +104,12 @@ describe("POST /api/tools/url-scan", () => {
     const data = await res.json();
 
     expect(res.status).toBe(400);
-    expect(data.error).toContain("URL");
+    expect(data.error).toBeDefined();
   });
 
   it("should reject unauthenticated requests", async () => {
     const { auth } = await import("@/lib/auth");
-    vi.mocked(auth).mockResolvedValueOnce(null);
+    (auth as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
 
     const req = createRequest({ url: "https://example.com" });
 

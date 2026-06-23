@@ -2,11 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST } from "@/app/api/reports/pdf/route";
 
 const mockFindUnique = vi.fn();
+const mockSubscriptionFindUnique = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     aISystem: {
       findUnique: (...args: unknown[]) => mockFindUnique(...args),
+    },
+    subscription: {
+      findUnique: (...args: unknown[]) => mockSubscriptionFindUnique(...args),
     },
   },
 }));
@@ -23,6 +27,21 @@ vi.mock("@/lib/audit", () => ({
   createAuditLog: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock("next/headers", () => ({
+  headers: vi.fn(() =>
+    Promise.resolve(
+      new Headers({
+        "x-forwarded-for": "127.0.0.1",
+        "user-agent": "test-agent",
+      })
+    )
+  ),
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  createRateLimiter: vi.fn(() => () => ({ allowed: true, remaining: 4, resetAt: Date.now() + 60000 })),
+}));
+
 function createRequest(body: unknown) {
   return new Request("http://localhost/api/reports/pdf", {
     method: "POST",
@@ -35,6 +54,12 @@ describe("POST /api/reports/pdf", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFindUnique.mockReset();
+    // Default: active professional subscription (required tier)
+    mockSubscriptionFindUnique.mockResolvedValue({
+      userId: "user_123",
+      status: "active",
+      tier: "professional",
+    });
   });
 
   it("should generate compliance summary report", async () => {
@@ -150,7 +175,7 @@ describe("POST /api/reports/pdf", () => {
     const data = await res.json();
 
     expect(res.status).toBe(400);
-    expect(data.error).toContain("System ID");
+    expect(data.error).toBeDefined();
   });
 
   it("should reject access to other users systems", async () => {

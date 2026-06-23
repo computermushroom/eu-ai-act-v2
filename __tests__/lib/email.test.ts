@@ -46,6 +46,7 @@ describe("Email Service", () => {
 
   describe("sendEmail", () => {
     it("should not throw in development when no SMTP is configured", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "development";
       delete process.env.RESEND_API_KEY;
       delete process.env.SMTP_HOST;
@@ -69,6 +70,7 @@ describe("Email Service", () => {
     });
 
     it("should throw in production when no SMTP is configured", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "production";
       delete process.env.RESEND_API_KEY;
       delete process.env.SMTP_HOST;
@@ -87,6 +89,7 @@ describe("Email Service", () => {
     });
 
     it("should call sendMail when transporter is configured", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
 
@@ -109,6 +112,7 @@ describe("Email Service", () => {
     });
 
     it("should use default from address when SMTP_FROM is not set", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
       delete process.env.SMTP_FROM;
@@ -131,6 +135,7 @@ describe("Email Service", () => {
     });
 
     it("should use custom from address when SMTP_FROM is set", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
       process.env.SMTP_FROM = "custom@company.com";
@@ -152,6 +157,7 @@ describe("Email Service", () => {
     });
 
     it("should retry on transient errors", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
 
@@ -173,6 +179,7 @@ describe("Email Service", () => {
     });
 
     it("should throw after exhausting retries on transient errors", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
 
@@ -195,6 +202,7 @@ describe("Email Service", () => {
     });
 
     it("should not retry on non-transient errors", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
 
@@ -220,6 +228,7 @@ describe("Email Service", () => {
 
   describe("sendWelcomeEmail", () => {
     it("should call sendEmailWithRetry with correct parameters", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
 
@@ -236,12 +245,13 @@ describe("Email Service", () => {
       );
 
       // Verify text content includes user name
-      const callArgs = mockSendMail.mock.calls[0][0];
+      const callArgs = mockSendMail.mock.calls[0]![0]!;
       expect(callArgs.text).toContain("John");
       expect(callArgs.text).toContain("Welcome");
     });
 
     it("should include dashboard URL in welcome email HTML", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
       process.env.NEXTAUTH_URL = "https://app.example.com";
@@ -251,7 +261,7 @@ describe("Email Service", () => {
 
       await sendWelcomeEmail("user@example.com", "Jane");
 
-      const callArgs = mockSendMail.mock.calls[0][0];
+      const callArgs = mockSendMail.mock.calls[0]![0]!;
       // Dashboard URL is in the HTML version, not the plain text version
       expect(callArgs.html).toContain("https://app.example.com/dashboard");
     });
@@ -261,6 +271,7 @@ describe("Email Service", () => {
 
   describe("sendPaymentFailedEmail", () => {
     it("should call sendEmailWithRetry with correct parameters", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
 
@@ -276,13 +287,14 @@ describe("Email Service", () => {
         })
       );
 
-      const callArgs = mockSendMail.mock.calls[0][0];
+      const callArgs = mockSendMail.mock.calls[0]![0]!;
       expect(callArgs.text).toContain("Alice");
       expect(callArgs.text).toContain("professional");
       expect(callArgs.text).toContain("past due");
     });
 
     it("should include dashboard URL for payment update", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
       process.env.NEXTAUTH_URL = "https://app.example.com";
@@ -292,7 +304,7 @@ describe("Email Service", () => {
 
       await sendPaymentFailedEmail("user@example.com", "Bob", "business");
 
-      const callArgs = mockSendMail.mock.calls[0][0];
+      const callArgs = mockSendMail.mock.calls[0]![0]!;
       expect(callArgs.html).toContain("https://app.example.com/dashboard");
       expect(callArgs.html).toContain("Update Payment Method");
     });
@@ -302,6 +314,7 @@ describe("Email Service", () => {
 
   describe("sendRefundEmail", () => {
     it("should call sendEmailWithRetry with correct parameters", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
 
@@ -317,13 +330,14 @@ describe("Email Service", () => {
         })
       );
 
-      const callArgs = mockSendMail.mock.calls[0][0];
+      const callArgs = mockSendMail.mock.calls[0]![0]!;
       expect(callArgs.text).toContain("Charlie");
       expect(callArgs.text).toContain("enterprise");
       expect(callArgs.text).toContain("refund");
     });
 
     it("should include pricing page URL for resubscription", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
       process.env.NEXTAUTH_URL = "https://app.example.com";
@@ -333,12 +347,13 @@ describe("Email Service", () => {
 
       await sendRefundEmail("user@example.com", "Diana", "starter");
 
-      const callArgs = mockSendMail.mock.calls[0][0];
+      const callArgs = mockSendMail.mock.calls[0]![0]!;
       expect(callArgs.html).toContain("https://app.example.com/pricing");
       expect(callArgs.html).toContain("View Plans & Resubscribe");
     });
 
     it("should mention downgrade to Free tier", async () => {
+      // @ts-expect-error - test environment override
       process.env.NODE_ENV = "test";
       process.env.RESEND_API_KEY = "re-test-key";
 
@@ -347,7 +362,7 @@ describe("Email Service", () => {
 
       await sendRefundEmail("user@example.com", "Eve", "professional");
 
-      const callArgs = mockSendMail.mock.calls[0][0];
+      const callArgs = mockSendMail.mock.calls[0]![0]!;
       expect(callArgs.text).toContain("Free");
       expect(callArgs.html).toContain("Free");
     });

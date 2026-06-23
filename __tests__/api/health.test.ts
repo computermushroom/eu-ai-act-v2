@@ -10,7 +10,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@/lib/env", () => ({
-  validateEnv: vi.fn(() => ({ missing: [], invalid: [] })),
+  validateEnv: vi.fn(() => ({ valid: true, missing: [], warnings: [] })),
 }));
 
 describe("GET /api/health", () => {
@@ -22,54 +22,50 @@ describe("GET /api/health", () => {
   it("should return healthy status when all checks pass", async () => {
     mockQueryRaw.mockResolvedValue([{ "?column?": 1 }]);
 
-    const req = new Request("http://localhost/api/health") as unknown as import("next/server").NextRequest;
-    const res = await GET(req);
+    const res = await GET();
     const data = await res.json();
 
     expect(res.status).toBe(200);
     expect(data.status).toBe("healthy");
-    expect(data.database).toBe("connected");
-    expect(data.environment).toBe("valid");
-    expect(data.latency).toBeGreaterThanOrEqual(0);
+    expect(data.checks.database.status).toBe("healthy");
+    expect(data.checks.env.status).toBe("healthy");
+    expect(data.latencyMs).toBeGreaterThanOrEqual(0);
     expect(data.uptime).toBeGreaterThan(0);
   });
 
-  it("should return degraded status when database fails", async () => {
+  it("should return unhealthy status when database fails", async () => {
     mockQueryRaw.mockRejectedValue(new Error("Connection refused"));
 
-    const req = new Request("http://localhost/api/health") as unknown as import("next/server").NextRequest;
-    const res = await GET(req);
+    const res = await GET();
     const data = await res.json();
 
     expect(res.status).toBe(503);
-    expect(data.status).toBe("degraded");
-    expect(data.database).toBe("disconnected");
-    expect(data.error).toContain("Connection refused");
+    expect(data.status).toBe("unhealthy");
+    expect(data.checks.database.status).toBe("unhealthy");
   });
 
-  it("should return degraded status when environment is invalid", async () => {
+  it("should return unhealthy status when environment is invalid", async () => {
     const { validateEnv } = await import("@/lib/env");
     vi.mocked(validateEnv).mockReturnValueOnce({
+      valid: false,
       missing: ["DATABASE_URL"],
-      invalid: [],
+      warnings: [],
     });
     mockQueryRaw.mockResolvedValue([{ "?column?": 1 }]);
 
-    const req = new Request("http://localhost/api/health") as unknown as import("next/server").NextRequest;
-    const res = await GET(req);
+    const res = await GET();
     const data = await res.json();
 
     expect(res.status).toBe(503);
-    expect(data.status).toBe("degraded");
-    expect(data.environment).toBe("invalid");
-    expect(data.missingEnvVars).toContain("DATABASE_URL");
+    expect(data.status).toBe("unhealthy");
+    expect(data.checks.env.status).toBe("unhealthy");
+    expect(data.checks.env.missing).toContain("DATABASE_URL");
   });
 
   it("should be accessible without authentication", async () => {
     mockQueryRaw.mockResolvedValue([{ "?column?": 1 }]);
 
-    const req = new Request("http://localhost/api/health") as unknown as import("next/server").NextRequest;
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(200);
   });
