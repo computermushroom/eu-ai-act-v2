@@ -1,28 +1,26 @@
 /**
- * Webhook Handler Tests
- * Tests for the unified webhook processing logic in lib/payment/webhook-handler.ts
+ * FastSpring Webhook Handler Tests
+ * Tests for the FastSpring webhook processing logic in lib/payment/webhook-handler.ts
  * Covers all subscription lifecycle events and edge cases
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ─── Mock Prisma ───────────────────────────────────────────────────
-const mockUserFindUnique = vi.fn();
-const mockUserFindFirst = vi.fn();
+const mockProcessedWebhookEventFindUnique = vi.fn();
+const mockProcessedWebhookEventCreate = vi.fn();
 const mockSubscriptionUpsert = vi.fn();
-const mockSubscriptionUpdate = vi.fn();
-const mockSubscriptionFindFirst = vi.fn();
+const mockSubscriptionUpdateMany = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    user: {
-      findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
-      findFirst: (...args: unknown[]) => mockUserFindFirst(...args),
+    processedWebhookEvent: {
+      findUnique: (...args: unknown[]) => mockProcessedWebhookEventFindUnique(...args),
+      create: (...args: unknown[]) => mockProcessedWebhookEventCreate(...args),
     },
     subscription: {
       upsert: (...args: unknown[]) => mockSubscriptionUpsert(...args),
-      update: (...args: unknown[]) => mockSubscriptionUpdate(...args),
-      findFirst: (...args: unknown[]) => mockSubscriptionFindFirst(...args),
+      updateMany: (...args: unknown[]) => mockSubscriptionUpdateMany(...args),
     },
   },
 }));
@@ -33,269 +31,207 @@ vi.mock("@/lib/audit", () => ({
   createAuditLog: (...args: unknown[]) => mockCreateAuditLog(...args),
 }));
 
-import { processWebhookData } from "@/lib/payment/webhook-handler";
-import type { UnifiedSubscriptionData } from "@/lib/payment/types";
+import { processWebhook, verifyWebhookSignature } from "@/lib/payment/webhook-handler";
+import type { FastSpringWebhookPayload } from "@/lib/payment/types";
 
 // ─── Test Helpers ──────────────────────────────────────────────────
 
-function createWebhookData(
-  overrides: Partial<UnifiedSubscriptionData> = {}
-): UnifiedSubscriptionData {
+function createWebhookPayload(
+  eventType: string,
+  overrides: Record<string, unknown> = {}
+): FastSpringWebhookPayload {
   return {
-    gateway: "creem",
-    gatewaySubscriptionId: "gw-sub-123",
-    gatewayCustomerId: "gw-cust-123",
-    gatewayProductId: "gw-prod-123",
-    gatewayOrderId: "gw-order-123",
-    customerEmail: "test@example.com",
-    tier: "professional",
-    status: "active",
-    currentPeriodStart: new Date("2025-01-01"),
-    currentPeriodEnd: new Date("2025-02-01"),
-    testMode: false,
-    rawEvent: "subscription_created",
-    ...overrides,
+    events: [
+      {
+        id: `evt-${Math.random().toString(36).slice(2)}`,
+        type: eventType as never,
+        created: Math.floor(Date.now() / 1000),
+        data: {
+          order: {
+            id: "fs-order-123",
+            reference: "order-ref-123",
+            account: "user-123",
+            total: 89.0,
+            currency: "EUR",
+            items: [
+              {
+                product: "professional-plan",
+                quantity: 1,
+                price: 89.0,
+                subscription: "fs-sub-123",
+              },
+            ],
+          },
+          subscription: {
+            id: "fs-sub-123",
+            subscription: "fs-sub-123",
+            account: "user-123",
+            product: "professional-plan",
+            quantity: 1,
+            status: "active",
+            begin: Math.floor(Date.now() / 1000),
+            nextChargeDate: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+          },
+          ...overrides,
+        },
+      },
+    ],
   };
 }
 
 // ─── Tests ────────────────────────────────────────────────────────
 
-describe("processWebhookData", () => {
+describe("verifyWebhookSignature", () => {
+  it("should return true when FASTSPRING_WEBHOOK_SECRET is not set", () => {
+    delete process.env.FASTSPRING_WEBHOOK_SECRET;
+    const result = verifyWebhookSignature("payload", "signature");
+    expect(result).toBe(true);
+  });
+
+  it("should verify valid HMAC signature", () => {
+    const secret = "test-secret";
+    process.env.FASTSPRING_WEBHOOK_SECRET = secret;
+
+    const crypto = require("crypto");
+    const expected = crypto
+      .createHmac("sha256", secret)
+      .update("payload", "utf8")
+      .digest("hex");
+
+    const result = verifyWebhookSignature("payload", expected);
+    expect(result).toBe(true);
+  });
+
+  it("should reject invalid signature", () => {
+    process.env.FASTSPRING_WEBHOOK_SECRET = "test-secret";
+    const result = verifyWebhookSignature("payload", "invalid-signature");
+    expect(result).toBe(false);
+  });
+});
+
+describe("processWebhook", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUserFindUnique.mockReset();
+    mockProcessedWebhookEventFindUnique.mockReset();
+    mockProcessedWebhookEventCreate.mockReset();
     mockSubscriptionUpsert.mockReset();
-    mockSubscriptionUpdate.mockReset();
-    mockSubscriptionFindFirst.mockReset();
+    mockSubscriptionUpdateMany.mockReset();
     mockCreateAuditLog.mockResolvedValue(undefined);
   });
 
-  // ─── subscription_created ────────────────────────────────────────
+  // ─── order.completed ─────────────────────────────────────────────
 
-  describe("subscription_created event", () => {
-    it("should call subscription upsert and create audit log", async () => {
-      const mockUser = { id: "user-123", email: "test@example.com" };
-      const mockSubscription = {
-        id: "sub-123",
-        userId: "user-123",
-        tier: "professional",
-        status: "active",
-      };
+  describe("order.completed event", () => {
+    it("should create subscription on order completed", async () => {
+      mockProcessedWebhookEventFindUnique.mockResolvedValue(null);
+      mockSubscriptionUpsert.mockResolvedValue({ id: "sub-123" });
+      mockProcessedWebhookEventCreate.mockResolvedValue({ id: "evt-1" });
 
-      mockUserFindUnique.mockResolvedValue(mockUser);
-      mockSubscriptionUpsert.mockResolvedValue(mockSubscription);
+      const payload = createWebhookPayload("order.completed");
+      const result = await processWebhook(payload);
 
-      const data = createWebhookData({ rawEvent: "subscription_created" });
-      await processWebhookData(data);
-
-      // upsert should be called to create/update subscription
+      expect(result.processed).toBe(1);
+      expect(result.errors).toHaveLength(0);
       expect(mockSubscriptionUpsert).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { gatewaySubscriptionId: "gw-sub-123" },
+          where: { userId: "user-123" },
           create: expect.objectContaining({
-            userId: "user-123",
+            gateway: "fastspring",
+            gatewayOrderId: "fs-order-123",
             tier: "professional",
             status: "active",
           }),
         })
       );
-
-      // audit log should be created
       expect(mockCreateAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
-          userId: "user-123",
-          action: "subscription_created",
-          resource: "subscription",
+          action: "payment_succeeded",
         })
       );
     });
+  });
 
-    it("should set cancelledAt to null for new subscriptions", async () => {
-      mockUserFindUnique.mockResolvedValue({ id: "user-123", email: "test@example.com" });
+  // ─── subscription.activated ─────────────────────────────────────
+
+  describe("subscription.activated event", () => {
+    it("should upsert subscription on activation", async () => {
+      mockProcessedWebhookEventFindUnique.mockResolvedValue(null);
       mockSubscriptionUpsert.mockResolvedValue({ id: "sub-123" });
+      mockProcessedWebhookEventCreate.mockResolvedValue({ id: "evt-1" });
 
-      const data = createWebhookData({ rawEvent: "subscription_created" });
-      await processWebhookData(data);
+      const payload = createWebhookPayload("subscription.activated");
+      const result = await processWebhook(payload);
 
+      expect(result.processed).toBe(1);
       expect(mockSubscriptionUpsert).toHaveBeenCalledWith(
         expect.objectContaining({
-          create: expect.objectContaining({ cancelledAt: null }),
-        })
-      );
-    });
-  });
-
-  // ─── subscription_cancelled ─────────────────────────────────────
-
-  describe("subscription_cancelled event", () => {
-    it("should set cancelledAt on the subscription", async () => {
-      mockUserFindUnique.mockResolvedValue({ id: "user-123", email: "test@example.com" });
-      mockSubscriptionUpsert.mockResolvedValue({ id: "sub-123" });
-      mockSubscriptionUpdate.mockResolvedValue({ id: "sub-123" });
-
-      const data = createWebhookData({
-        rawEvent: "subscription_cancelled",
-        status: "cancelled",
-        currentPeriodEnd: new Date("2025-03-01"),
-      });
-      await processWebhookData(data);
-
-      // handleSubscriptionCancelled should be called via update
-      expect(mockSubscriptionUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: "sub-123" },
-          data: expect.objectContaining({
-            cancelledAt: expect.any(Date),
+          where: { userId: "user-123" },
+          create: expect.objectContaining({
+            gateway: "fastspring",
+            gatewaySubscriptionId: "fs-sub-123",
+            tier: "professional",
+            status: "active",
           }),
         })
       );
-    });
-
-    it("should set status to cancelled when period has not expired", async () => {
-      mockUserFindUnique.mockResolvedValue({ id: "user-123", email: "test@example.com" });
-      mockSubscriptionUpsert.mockResolvedValue({ id: "sub-123" });
-      mockSubscriptionUpdate.mockResolvedValue({ id: "sub-123" });
-
-      const futureEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      const data = createWebhookData({
-        rawEvent: "subscription_cancelled",
-        status: "cancelled",
-        currentPeriodEnd: futureEnd,
-      });
-      await processWebhookData(data);
-
-      expect(mockSubscriptionUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ status: "cancelled" }),
-        })
-      );
-    });
-  });
-
-  // ─── subscription_expired ───────────────────────────────────────
-
-  describe("subscription_expired event", () => {
-    it("should downgrade tier to free", async () => {
-      mockUserFindUnique.mockResolvedValue({ id: "user-123", email: "test@example.com" });
-      mockSubscriptionUpsert.mockResolvedValue({ id: "sub-123" });
-      mockSubscriptionUpdate.mockResolvedValue({ id: "sub-123" });
-
-      const data = createWebhookData({
-        rawEvent: "subscription_expired",
-        status: "expired",
-      });
-      await processWebhookData(data);
-
-      expect(mockSubscriptionUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: "sub-123" },
-          data: expect.objectContaining({
-            tier: "free",
-            status: "expired",
-          }),
-        })
-      );
-    });
-
-    it("should set cancelledAt on expiry", async () => {
-      mockUserFindUnique.mockResolvedValue({ id: "user-123", email: "test@example.com" });
-      mockSubscriptionUpsert.mockResolvedValue({ id: "sub-123" });
-      mockSubscriptionUpdate.mockResolvedValue({ id: "sub-123" });
-
-      const data = createWebhookData({
-        rawEvent: "subscription_expired",
-        status: "expired",
-      });
-      await processWebhookData(data);
-
-      expect(mockSubscriptionUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            cancelledAt: expect.any(Date),
-          }),
-        })
-      );
-    });
-  });
-
-  // ─── subscription_payment_failed ────────────────────────────────
-
-  describe("subscription_payment_failed event", () => {
-    it("should set status to past_due", async () => {
-      mockUserFindUnique.mockResolvedValue({ id: "user-123", email: "test@example.com" });
-      mockSubscriptionUpsert.mockResolvedValue({ id: "sub-123" });
-      mockSubscriptionUpdate.mockResolvedValue({ id: "sub-123" });
-
-      const data = createWebhookData({
-        rawEvent: "subscription_payment_failed",
-        status: "past_due",
-      });
-      await processWebhookData(data);
-
-      expect(mockSubscriptionUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: "sub-123" },
-          data: expect.objectContaining({ status: "past_due" }),
-        })
-      );
-    });
-
-    it("should create audit log with payment_failed action", async () => {
-      mockUserFindUnique.mockResolvedValue({ id: "user-123", email: "test@example.com" });
-      mockSubscriptionUpsert.mockResolvedValue({ id: "sub-123" });
-      mockSubscriptionUpdate.mockResolvedValue({ id: "sub-123" });
-
-      const data = createWebhookData({
-        rawEvent: "subscription_payment_failed",
-        status: "past_due",
-      });
-      await processWebhookData(data);
-
       expect(mockCreateAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: "payment_failed",
+          action: "subscription_created",
         })
       );
     });
   });
 
-  // ─── subscription_refunded ───────────────────────────────────────
+  // ─── subscription.updated ───────────────────────────────────────
 
-  describe("subscription_refunded event", () => {
-    it("should downgrade tier to free and set status to cancelled", async () => {
-      mockUserFindUnique.mockResolvedValue({ id: "user-123", email: "test@example.com" });
-      mockSubscriptionUpsert.mockResolvedValue({ id: "sub-123" });
-      mockSubscriptionUpdate.mockResolvedValue({ id: "sub-123" });
+  describe("subscription.updated event", () => {
+    it("should update subscription on update event", async () => {
+      mockProcessedWebhookEventFindUnique.mockResolvedValue(null);
+      mockSubscriptionUpdateMany.mockResolvedValue({ count: 1 });
+      mockProcessedWebhookEventCreate.mockResolvedValue({ id: "evt-1" });
 
-      const data = createWebhookData({
-        rawEvent: "subscription_refunded",
-        status: "cancelled",
-      });
-      await processWebhookData(data);
+      const payload = createWebhookPayload("subscription.updated");
+      const result = await processWebhook(payload);
 
-      expect(mockSubscriptionUpdate).toHaveBeenCalledWith(
+      expect(result.processed).toBe(1);
+      expect(mockSubscriptionUpdateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: "sub-123" },
+          where: { gatewaySubscriptionId: "fs-sub-123" },
           data: expect.objectContaining({
-            tier: "free",
+            tier: "professional",
+            status: "active",
+          }),
+        })
+      );
+      expect(mockCreateAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "subscription_updated",
+        })
+      );
+    });
+  });
+
+  // ─── subscription.canceled ──────────────────────────────────────
+
+  describe("subscription.canceled event", () => {
+    it("should set status to cancelled on cancel event", async () => {
+      mockProcessedWebhookEventFindUnique.mockResolvedValue(null);
+      mockSubscriptionUpdateMany.mockResolvedValue({ count: 1 });
+      mockProcessedWebhookEventCreate.mockResolvedValue({ id: "evt-1" });
+
+      const payload = createWebhookPayload("subscription.canceled");
+      const result = await processWebhook(payload);
+
+      expect(result.processed).toBe(1);
+      expect(mockSubscriptionUpdateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { gatewaySubscriptionId: "fs-sub-123" },
+          data: expect.objectContaining({
             status: "cancelled",
             cancelledAt: expect.any(Date),
           }),
         })
       );
-    });
-
-    it("should create audit log with subscription_cancelled action", async () => {
-      mockUserFindUnique.mockResolvedValue({ id: "user-123", email: "test@example.com" });
-      mockSubscriptionUpsert.mockResolvedValue({ id: "sub-123" });
-      mockSubscriptionUpdate.mockResolvedValue({ id: "sub-123" });
-
-      const data = createWebhookData({
-        rawEvent: "subscription_refunded",
-        status: "cancelled",
-      });
-      await processWebhookData(data);
-
       expect(mockCreateAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
           action: "subscription_cancelled",
@@ -304,76 +240,182 @@ describe("processWebhookData", () => {
     });
   });
 
-  // ─── Edge Cases ─────────────────────────────────────────────────
+  // ─── subscription.deactivated ───────────────────────────────────
 
-  describe("edge cases", () => {
-    it("should skip processing when gatewaySubscriptionId is missing", async () => {
-      const data = createWebhookData({ gatewaySubscriptionId: "" });
+  describe("subscription.deactivated event", () => {
+    it("should set status to expired on deactivation", async () => {
+      mockProcessedWebhookEventFindUnique.mockResolvedValue(null);
+      mockSubscriptionUpdateMany.mockResolvedValue({ count: 1 });
+      mockProcessedWebhookEventCreate.mockResolvedValue({ id: "evt-1" });
 
-      await processWebhookData(data);
+      const payload = createWebhookPayload("subscription.deactivated");
+      const result = await processWebhook(payload);
 
-      expect(mockUserFindUnique).not.toHaveBeenCalled();
-      expect(mockSubscriptionUpsert).not.toHaveBeenCalled();
-      expect(mockCreateAuditLog).not.toHaveBeenCalled();
-    });
-
-    it("should skip processing when customerEmail is missing", async () => {
-      const data = createWebhookData({ customerEmail: "" });
-
-      await processWebhookData(data);
-
-      expect(mockUserFindUnique).not.toHaveBeenCalled();
-      expect(mockSubscriptionUpsert).not.toHaveBeenCalled();
-      expect(mockCreateAuditLog).not.toHaveBeenCalled();
-    });
-
-    it("should handle orphan subscription when user does not exist", async () => {
-      mockUserFindUnique.mockResolvedValue(null);
-      mockSubscriptionFindFirst.mockResolvedValue({
-        id: "orphan-sub-123",
-        userId: "deleted-user-456",
-      });
-      mockSubscriptionUpdate.mockResolvedValue({ id: "orphan-sub-123" });
-
-      const data = createWebhookData({
-        rawEvent: "subscription_cancelled",
-        status: "cancelled",
-      });
-      await processWebhookData(data);
-
-      // Should attempt to find existing subscription by gateway ID
-      expect(mockSubscriptionFindFirst).toHaveBeenCalledWith(
+      expect(result.processed).toBe(1);
+      expect(mockSubscriptionUpdateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({
-            gatewaySubscriptionId: "gw-sub-123",
+          where: { gatewaySubscriptionId: "fs-sub-123" },
+          data: expect.objectContaining({
+            status: "expired",
           }),
         })
       );
+    });
+  });
 
-      // Should update the orphan subscription
-      expect(mockSubscriptionUpdate).toHaveBeenCalled();
+  // ─── subscription.payment.overdue ───────────────────────────────
 
-      // Should NOT create audit log (no user to associate with)
-      expect(mockCreateAuditLog).not.toHaveBeenCalled();
+  describe("subscription.payment.overdue event", () => {
+    it("should set status to past_due on overdue", async () => {
+      mockProcessedWebhookEventFindUnique.mockResolvedValue(null);
+      mockSubscriptionUpdateMany.mockResolvedValue({ count: 1 });
+      mockProcessedWebhookEventCreate.mockResolvedValue({ id: "evt-1" });
+
+      const payload = createWebhookPayload("subscription.payment.overdue");
+      const result = await processWebhook(payload);
+
+      expect(result.processed).toBe(1);
+      expect(mockSubscriptionUpdateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { gatewaySubscriptionId: "fs-sub-123" },
+          data: expect.objectContaining({
+            status: "past_due",
+          }),
+        })
+      );
+      expect(mockCreateAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "payment_failed",
+        })
+      );
+    });
+  });
+
+  // ─── return.created ─────────────────────────────────────────────
+
+  describe("return.created event", () => {
+    it("should cancel subscription on refund", async () => {
+      mockProcessedWebhookEventFindUnique.mockResolvedValue(null);
+      mockSubscriptionUpdateMany.mockResolvedValue({ count: 1 });
+      mockProcessedWebhookEventCreate.mockResolvedValue({ id: "evt-1" });
+
+      const payload: FastSpringWebhookPayload = {
+        events: [
+          {
+            id: "evt-return",
+            type: "return.created",
+            created: Date.now(),
+            data: {
+              return: {
+                id: "fs-return-123",
+                order: "fs-order-123",
+                account: "user-123",
+                total: 89.0,
+                currency: "EUR",
+              },
+            },
+          },
+        ],
+      };
+      const result = await processWebhook(payload);
+
+      expect(result.processed).toBe(1);
+      expect(mockSubscriptionUpdateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { gatewayOrderId: "fs-order-123" },
+          data: expect.objectContaining({
+            status: "cancelled",
+            cancelledAt: expect.any(Date),
+          }),
+        })
+      );
+    });
+  });
+
+  // ─── Idempotency ────────────────────────────────────────────────
+
+  describe("idempotency", () => {
+    it("should skip already processed events", async () => {
+      mockProcessedWebhookEventFindUnique.mockResolvedValue({ id: "evt-1", eventId: "evt-1" });
+
+      const payload = createWebhookPayload("order.completed");
+      const result = await processWebhook(payload);
+
+      expect(result.processed).toBe(0);
+      expect(mockSubscriptionUpsert).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── Edge Cases ─────────────────────────────────────────────────
+
+  describe("edge cases", () => {
+    it("should handle missing data gracefully", async () => {
+      mockProcessedWebhookEventFindUnique.mockResolvedValue(null);
+      mockProcessedWebhookEventCreate.mockResolvedValue({ id: "evt-1" });
+
+      const payload: FastSpringWebhookPayload = {
+        events: [
+          {
+            id: "evt-empty",
+            type: "order.completed",
+            created: Date.now(),
+            data: {},
+          },
+        ],
+      };
+
+      const result = await processWebhook(payload);
+      expect(result.processed).toBe(1);
+      expect(result.errors).toHaveLength(0);
     });
 
-    it("should skip orphan update when no existing subscription found", async () => {
-      mockUserFindUnique.mockResolvedValue(null);
-      mockSubscriptionFindFirst.mockResolvedValue(null);
+    it("should continue processing on single event error", async () => {
+      mockProcessedWebhookEventFindUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+      mockSubscriptionUpsert.mockRejectedValue(new Error("DB error"));
+      mockProcessedWebhookEventCreate.mockResolvedValue({ id: "evt-1" });
 
-      const data = createWebhookData({ rawEvent: "subscription_created" });
-      await processWebhookData(data);
+      const payload: FastSpringWebhookPayload = {
+        events: [
+          {
+            id: "evt-1",
+            type: "order.completed",
+            created: Date.now(),
+            data: {
+              order: {
+                id: "order-1",
+                reference: "ref-1",
+                account: "user-1",
+                total: 89,
+                currency: "EUR",
+                items: [{ product: "professional-plan", quantity: 1, price: 89 }],
+              },
+            },
+          },
+          {
+            id: "evt-2",
+            type: "subscription.canceled",
+            created: Date.now(),
+            data: {
+              subscription: {
+                id: "sub-2",
+                subscription: "sub-2",
+                account: "user-2",
+                product: "starter-plan",
+                quantity: 1,
+                status: "canceled",
+                begin: Date.now(),
+                nextChargeDate: Date.now(),
+              },
+            },
+          },
+        ],
+      };
 
-      expect(mockSubscriptionUpdate).not.toHaveBeenCalled();
-      expect(mockCreateAuditLog).not.toHaveBeenCalled();
-    });
-
-    it("should re-throw error on database failure", async () => {
-      mockUserFindUnique.mockRejectedValue(new Error("Database connection lost"));
-
-      const data = createWebhookData({ rawEvent: "subscription_created" });
-
-      await expect(processWebhookData(data)).rejects.toThrow("Database connection lost");
+      const result = await processWebhook(payload);
+      expect(result.processed).toBe(1); // Second event processed
+      expect(result.errors).toHaveLength(1); // First event failed
     });
   });
 });

@@ -18,11 +18,11 @@ const ENV_VARS: EnvVarSpec[] = [
   { name: "DATABASE_URL", required: true, description: "PostgreSQL connection string" },
   { name: "NEXTAUTH_URL", required: true, description: "Canonical app URL" },
   { name: "NEXTAUTH_SECRET", required: true, description: "NextAuth session encryption secret" },
-  // Payment (gateway is now controlled via GlobalConfig table, not env var)
-  { name: "CREEM_API_KEY", required: false, description: "Creem API key (backup gateway)" },
-  { name: "CREEM_WEBHOOK_SECRET", required: false, description: "Creem webhook secret (backup gateway)" },
-  { name: "PADDLE_API_KEY", required: false, description: "Paddle API key (primary gateway)" },
-  { name: "PADDLE_WEBHOOK_SECRET", required: false, description: "Paddle webhook secret (primary gateway)" },
+  // Payment (FastSpring single gateway)
+  { name: "FASTSPRING_API_KEY", required: false, description: "FastSpring API key (Basic Auth username)" },
+  { name: "FASTSPRING_API_PASSWORD", required: false, description: "FastSpring API password (Basic Auth password)" },
+  { name: "FASTSPRING_STORE_ID", required: false, description: "FastSpring Store ID (e.g. computermushroom)" },
+  { name: "FASTSPRING_WEBHOOK_SECRET", required: false, description: "FastSpring webhook secret for HMAC verification" },
   { name: "ADMIN_EMAILS", required: false, description: "Comma-separated admin emails for /admin access" },
   // LLM / AI
   { name: "LLM_PROVIDER", required: false, description: "LLM provider (openai|anthropic)" },

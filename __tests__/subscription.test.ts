@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { POST as checkoutHandler } from "@/app/api/subscription/checkout/route";
-import { POST as paddleWebhookHandler } from "@/app/api/payment/webhook/paddle/route";
-import { POST as creemWebhookHandler } from "@/app/api/payment/webhook/creem/route";
+import { POST as webhookHandler } from "@/app/api/payment/webhook/fastspring/route";
 import { requireTier } from "@/lib/subscription-guard";
 
 // ─── Mock Prisma ───────────────────────────────────────────────────
@@ -10,7 +9,6 @@ const mockSubscriptionFindUnique = vi.fn();
 const mockSubscriptionUpsert = vi.fn();
 const mockSubscriptionUpdate = vi.fn();
 const mockUserFindUnique = vi.fn();
-const mockGlobalConfigFindUnique = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -18,14 +16,9 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: (...args: unknown[]) => mockSubscriptionFindUnique(...args),
       upsert: (...args: unknown[]) => mockSubscriptionUpsert(...args),
       update: (...args: unknown[]) => mockSubscriptionUpdate(...args),
-      groupBy: vi.fn().mockResolvedValue([]),
     },
     user: {
       findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
-    },
-    globalConfig: {
-      findUnique: (...args: unknown[]) => mockGlobalConfigFindUnique(...args),
-      upsert: vi.fn().mockResolvedValue({}),
     },
   },
 }));
@@ -55,9 +48,6 @@ vi.mock("@/lib/payment", () => ({
   createCheckout: (...args: unknown[]) => mockCreateCheckout(...args),
   verifyWebhook: (...args: unknown[]) => mockVerifyWebhook(...args),
   processWebhookData: (...args: unknown[]) => mockProcessWebhookData(...args),
-  getPaymentProviderInfo: vi.fn().mockResolvedValue({ activeGateway: "paddle", isConfigured: true }),
-  getActiveProvider: vi.fn().mockResolvedValue("paddle"),
-  setActiveProvider: vi.fn().mockResolvedValue(undefined),
 }));
 
 function createJsonRequest(body: unknown, opts?: { headers?: Record<string, string> }): NextRequest {
@@ -78,7 +68,7 @@ describe("Subscription API - Checkout", () => {
       user: { id: "user-123", email: "test@example.com" },
     });
     mockCreateCheckout.mockResolvedValue({
-      checkoutUrl: "https://checkout.paddle.com/test",
+      checkoutUrl: "https://fastspring.com/checkout/test",
       sessionId: "txn_123",
     });
 
@@ -87,7 +77,7 @@ describe("Subscription API - Checkout", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.checkoutUrl).toBe("https://checkout.paddle.com/test");
+    expect(body.checkoutUrl).toBe("https://fastspring.com/checkout/test");
     expect(mockCreateCheckout).toHaveBeenCalledWith(
       expect.objectContaining({
         tier: "professional",
@@ -125,53 +115,53 @@ describe("Subscription API - Checkout", () => {
     mockAuth.mockResolvedValue({
       user: { id: "user-123", email: "test@example.com" },
     });
-    mockCreateCheckout.mockRejectedValue(new Error("Price ID not configured"));
+    mockCreateCheckout.mockRejectedValue(new Error("Product path not configured"));
 
     const req = createJsonRequest({ tier: "enterprise" });
     const res = await checkoutHandler(req);
     const body = await res.json();
 
     expect(res.status).toBe(500);
-    expect(body.error).toContain("Price ID not configured");
+    expect(body.error).toContain("Product path not configured");
   });
 });
 
-describe("Paddle Webhook Handler", () => {
+describe("FastSpring Webhook Handler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("should process valid Paddle webhook", async () => {
+  it("should process valid FastSpring webhook", async () => {
     mockVerifyWebhook.mockResolvedValue({
       valid: true,
-      event: "subscription_created",
+      event: "order.completed",
       data: {
-        gateway: "paddle",
+        gateway: "fastspring",
         gatewaySubscriptionId: "sub_123",
         gatewayCustomerId: "ctm_123",
-        gatewayProductId: "pri_123",
-        gatewayOrderId: "txn_123",
+        gatewayProductId: "path_123",
+        gatewayOrderId: "ord_123",
         customerEmail: "test@example.com",
         tier: "professional",
         status: "active",
         currentPeriodStart: new Date(),
         currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         testMode: true,
-        rawEvent: "subscription.created",
+        rawEvent: "order.completed",
       },
     });
     mockProcessWebhookData.mockResolvedValue(undefined);
 
-    const req = new NextRequest("http://localhost/api/payment/webhook/paddle", {
+    const req = new NextRequest("http://localhost/api/payment/webhook/fastspring", {
       method: "POST",
-      body: JSON.stringify({ event_type: "subscription.created", data: {} }),
+      body: JSON.stringify({ event: "order.completed", data: {} }),
       headers: {
         "Content-Type": "application/json",
-        "Paddle-Signature": "ts=1234567890;h1=validsignature",
+        "X-FS-Signature": "validsignature",
       },
     });
 
-    const res = await paddleWebhookHandler(req);
+    const res = await webhookHandler(req);
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -179,12 +169,12 @@ describe("Paddle Webhook Handler", () => {
     expect(mockProcessWebhookData).toHaveBeenCalled();
   });
 
-  it("should reject invalid Paddle signature", async () => {
+  it("should reject invalid FastSpring signature", async () => {
     mockVerifyWebhook.mockResolvedValue({
       valid: false,
-      event: "subscription_created",
+      event: "order.completed",
       data: {
-        gateway: "paddle",
+        gateway: "fastspring",
         gatewaySubscriptionId: "",
         gatewayCustomerId: "",
         gatewayProductId: "",
@@ -199,58 +189,14 @@ describe("Paddle Webhook Handler", () => {
       },
     });
 
-    const req = new NextRequest("http://localhost/api/payment/webhook/paddle", {
+    const req = new NextRequest("http://localhost/api/payment/webhook/fastspring", {
       method: "POST",
       body: JSON.stringify({}),
       headers: { "Content-Type": "application/json" },
     });
 
-    const res = await paddleWebhookHandler(req);
+    const res = await webhookHandler(req);
     expect(res.status).toBe(401);
-  });
-});
-
-describe("Creem Webhook Handler", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("should process valid Creem webhook", async () => {
-    mockVerifyWebhook.mockResolvedValue({
-      valid: true,
-      event: "subscription_created",
-      data: {
-        gateway: "creem",
-        gatewaySubscriptionId: "sub_456",
-        gatewayCustomerId: "cus_456",
-        gatewayProductId: "prod_456",
-        gatewayOrderId: "ord_456",
-        customerEmail: "test@example.com",
-        tier: "starter",
-        status: "active",
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        testMode: false,
-        rawEvent: "subscription.created",
-      },
-    });
-    mockProcessWebhookData.mockResolvedValue(undefined);
-
-    const req = new NextRequest("http://localhost/api/payment/webhook/creem", {
-      method: "POST",
-      body: JSON.stringify({ event: "subscription.created", data: {} }),
-      headers: {
-        "Content-Type": "application/json",
-        "creem-signature": "validsignature",
-      },
-    });
-
-    const res = await creemWebhookHandler(req);
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(body.received).toBe(true);
-    expect(mockProcessWebhookData).toHaveBeenCalled();
   });
 });
 

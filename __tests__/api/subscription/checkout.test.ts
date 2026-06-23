@@ -12,7 +12,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/payment", () => ({
   createCheckout: vi.fn((params: { tier: string }) =>
     Promise.resolve({
-      checkoutUrl: `https://checkout.paddle.com/${params.tier}`,
+      checkoutUrl: `https://fastspring.com/checkout/${params.tier}`,
       sessionId: `txn_${params.tier}`,
     })
   ),
@@ -46,7 +46,7 @@ describe("POST /api/subscription/checkout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.checkoutUrl).toContain("checkout.paddle.com");
+    expect(data.checkoutUrl).toContain("fastspring.com");
   });
 
   it("should create checkout URL for professional tier", async () => {
@@ -56,7 +56,7 @@ describe("POST /api/subscription/checkout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.checkoutUrl).toContain("checkout.paddle.com");
+    expect(data.checkoutUrl).toContain("fastspring.com");
   });
 
   it("should create checkout URL for business tier", async () => {
@@ -66,7 +66,7 @@ describe("POST /api/subscription/checkout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.checkoutUrl).toContain("checkout.paddle.com");
+    expect(data.checkoutUrl).toContain("fastspring.com");
   });
 
   it("should create checkout URL for enterprise tier", async () => {
@@ -76,7 +76,7 @@ describe("POST /api/subscription/checkout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.checkoutUrl).toContain("checkout.paddle.com");
+    expect(data.checkoutUrl).toContain("fastspring.com");
   });
 
   it("should reject invalid tier", async () => {
@@ -91,7 +91,7 @@ describe("POST /api/subscription/checkout", () => {
 
   it("should reject unauthenticated requests", async () => {
     const { auth } = await import("@/lib/auth");
-    vi.mocked(auth).mockResolvedValueOnce(null);
+    (auth as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
 
     const req = createRequest({ tier: "starter" });
 
@@ -104,7 +104,7 @@ describe("POST /api/subscription/checkout", () => {
 
   it("should reject requests without email", async () => {
     const { auth } = await import("@/lib/auth");
-    vi.mocked(auth).mockResolvedValueOnce({
+    (auth as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       user: { id: "user_123" },
     } as never);
 
@@ -119,7 +119,7 @@ describe("POST /api/subscription/checkout", () => {
 
   it("should handle payment gateway errors", async () => {
     const { createCheckout } = await import("@/lib/payment");
-    vi.mocked(createCheckout).mockRejectedValueOnce(
+    (createCheckout as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error("Checkout creation failed")
     );
 

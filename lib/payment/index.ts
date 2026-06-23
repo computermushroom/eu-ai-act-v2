@@ -1,42 +1,33 @@
-// Payment Module - Public API
-// All payment operations are routed through PaymentContext
-// which reads the active gateway from GlobalConfig (runtime, no restart)
-//
-// UPPER LAYER CODE: import from "@/lib/payment" and use:
-//   - createCheckout(params)     — create a checkout session
-//   - getPaymentProviderInfo()   — get active gateway info for frontend
-//   - getActiveProvider()        — read current active gateway
-//   - setActiveProvider(gateway)  — update active gateway (admin only)
-//   - getStrategyByType(type)    — get specific strategy (webhook use)
-//   - verifyWebhook(body, hdrs, type) — verify webhook (webhook use)
+// Payment Module - FastSpring Single Gateway
+// Export entry for all payment-related functionality
 
-// Re-export everything from payment-context (primary entry point)
 export {
   createCheckout,
-  getPaymentProviderInfo,
-  getActiveProvider,
-  setActiveProvider,
-  getStrategyByType,
-  verifyWebhook,
-} from "./payment-context";
+  getSubscription,
+  cancelSubscription,
+  tierToProductPath,
+} from "./fastspring-adapter";
 
-// Re-export types for external consumers
+export {
+  verifyWebhookSignature,
+  processWebhook,
+} from "./webhook-handler";
+
 export type {
-  PaymentGatewayType,
   PaymentTier,
   BillingCycle,
-  UnifiedSubscriptionStatus,
-  UnifiedWebhookEvent,
   CheckoutParams,
   CheckoutResult,
-  UnifiedSubscriptionData,
-  WebhookVerifyResult,
-  PaymentProviderInfo,
-  BasePaymentStrategy,
+  SubscriptionData,
+  SubscriptionStatus,
+  FastSpringEventType,
+  FastSpringWebhookPayload,
+  FastSpringEvent,
+  FastSpringEventData,
+  FastSpringOrder,
+  FastSpringOrderItem,
+  FastSpringSubscription,
+  FastSpringReturn,
 } from "./types";
 
-// Re-export plan mapping utilities
-export { PLAN_MAP, getPlanId, getPlanMapping } from "./plan-map";
-
-// Re-export webhook handler (used by webhook routes)
-export { processWebhookData } from "./webhook-handler";
+export { TIER_PRODUCT_MAP, FASTSPRING_STATUS_MAP } from "./types";

@@ -120,10 +120,10 @@ const openApiSpec = {
       },
     },
     
-    "/api/payment/webhook/creem": {
+    "/api/payment/webhook/fastspring": {
       post: {
-        summary: "Creem Webhook",
-        description: "Receive Creem payment webhooks",
+        summary: "FastSpring Webhook",
+        description: "Receive FastSpring payment webhooks",
         requestBody: {
           required: true,
           content: {

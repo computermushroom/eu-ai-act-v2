@@ -19,7 +19,7 @@ A comprehensive SaaS platform for EU AI Act compliance assessment, risk manageme
 
 ### Payments & Subscriptions
 - 5 subscription tiers: Free, Starter (EUR 39), Professional (EUR 89), Business (EUR 159), Enterprise (EUR 249)
-- Creem/Paddle integration (checkout + webhooks)
+- FastSpring integration (checkout + webhooks)
 - Subscription management in dashboard
 
 ### Internationalization
@@ -52,7 +52,7 @@ A comprehensive SaaS platform for EU AI Act compliance assessment, risk manageme
 | Prisma | 7.8.0 | ORM with PostgreSQL |
 | Tailwind CSS | 4.x | Styling (CSS-first config) |
 | NextAuth.js | 5.x | Authentication |
-| Creem/Paddle | SDK | Payments |
+| FastSpring | API | Payments |
 | next-intl | 4.x | Internationalization |
 | react-pdf | 4.x | PDF report generation |
 | bcryptjs | 2.x | Password hashing |
@@ -91,8 +91,10 @@ Required variables:
 - `NEXTAUTH_SECRET` - Generate with `openssl rand -base64 32`
 
 Optional variables:
-- `PAYMENT_GATEWAY` - Active payment gateway (creem|paddle)
-- `CREEM_API_KEY` - For Creem payments
+- `FASTSPRING_API_KEY` - FastSpring API key (Basic Auth username)
+- `FASTSPRING_API_PASSWORD` - FastSpring API password (Basic Auth password)
+- `FASTSPRING_STORE_ID` - FastSpring Store ID
+- `FASTSPRING_WEBHOOK_SECRET` - FastSpring webhook secret for HMAC verification
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - For Google OAuth
 - `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` - For GitHub OAuth
 - `SMTP_HOST` / `SMTP_USER` / `SMTP_PASSWORD` - For password reset emails
@@ -153,8 +155,10 @@ The included `vercel.json` configures:
 | `DIRECT_DATABASE_URL` | Required | Not needed | Direct connection for migrations |
 | `NEXTAUTH_URL` | Required | Required | Auto-set by Vercel |
 | `NEXTAUTH_SECRET` | Required | Required | Generate with `openssl rand -base64 32` |
-| `PAYMENT_GATEWAY` | Required | Optional | Set to `creem` or `paddle` |
-| `CREEM_API_KEY` | Required | Optional | If using Creem |
+| `FASTSPRING_API_KEY` | Required | Optional | FastSpring API key |
+| `FASTSPRING_API_PASSWORD` | Required | Optional | FastSpring API password |
+| `FASTSPRING_STORE_ID` | Required | Optional | FastSpring Store ID |
+| `FASTSPRING_WEBHOOK_SECRET` | Required | Optional | FastSpring webhook secret |
 | `LLM_PROVIDER` | Required | Optional | `openai` or `anthropic` |
 | `RESEND_API_KEY` | Optional | Optional | If using Resend for emails |
 
@@ -162,10 +166,9 @@ The included `vercel.json` configures:
 
 #### Webhook URLs
 
-Configure these URLs in your payment provider dashboards:
+Configure this URL in your FastSpring dashboard:
 
-- **Creem:** `https://your-domain.com/api/payment/webhook/creem`
-- **Paddle:** `https://your-domain.com/api/payment/webhook/paddle`
+- **FastSpring:** `https://your-domain.com/api/payment/webhook/fastspring`
 
 ### Health Check
 
@@ -219,12 +222,11 @@ eu-ai-act-compliance-new/
 │   │   ├── openai-provider.ts  # OpenAI implementation
 │   │   ├── anthropic-provider.ts # Anthropic implementation
 │   │   └── index.ts       # Provider factory
-│   ├── payment/           # Payment adapters
-│   │   ├── types.ts       # Payment gateway types
-│   │   ├── creem-adapter.ts    # Creem gateway
-│   │   ├── paddle-adapter.ts   # Paddle gateway
-│   │   ├── webhook-handler.ts  # Webhook processing
-│   │   └── index.ts       # Gateway factory
+│   ├── payment/           # FastSpring payment adapter
+│   │   ├── types.ts       # Payment types
+│   │   ├── fastspring-adapter.ts  # FastSpring gateway
+│   │   ├── webhook-handler.ts     # Webhook processing
+│   │   └── index.ts       # Export entry
 │   ├── prisma.ts          # Prisma client (Driver Adapter)
 │   ├── rate-limit.ts      # API rate limiting
 │   ├── url-scanner.ts     # URL compliance scanner
@@ -258,8 +260,7 @@ eu-ai-act-compliance-new/
 | `/api/fria` | GET/POST | FRIA assessment (Art.27) | Yes (Business tier) |
 | `/api/health` | GET | Health check | No |
 | `/api/i18n/set-locale` | POST | Switch language | No |
-| `/api/payment/webhook/creem` | POST | Creem payment webhook | No |
-| `/api/payment/webhook/paddle` | POST | Paddle payment webhook | No |
+| `/api/payment/webhook/fastspring` | POST | FastSpring payment webhook | No |
 | `/api/profile` | GET/PATCH | Get/update profile | Yes |
 | `/api/profile/export` | GET | GDPR data export | Yes |
 | `/api/profile/delete` | POST | GDPR account deletion | Yes |
@@ -279,20 +280,19 @@ The OpenAPI 3.0 JSON spec is served dynamically from `/api/docs`.
 
 ## Architecture
 
-### Payment System (Adapter Pattern)
+### Payment System (FastSpring)
 
-The payment system uses the **Adapter Pattern** to support multiple gateways (Creem and Paddle) through a unified interface. Each gateway adapter implements a common `PaymentGateway` interface defined in `lib/payment/types.ts`. The factory function in `lib/payment/index.ts` selects the active adapter based on the `PAYMENT_GATEWAY` environment variable.
+The payment system uses a single FastSpring gateway for all checkout, subscription, webhook, and invoice operations. The FastSpring adapter implements the `BasePaymentStrategy` interface defined in `lib/payment/types.ts`.
 
 ```
 lib/payment/
-├── types.ts              # PaymentGateway interface + shared types
-├── creem-adapter.ts      # Creem SDK implementation
-├── paddle-adapter.ts     # Paddle SDK implementation
-├── webhook-handler.ts    # Unified webhook processing
-└── index.ts              # Factory: getPaymentGateway()
+├── types.ts              # Payment types
+├── fastspring-adapter.ts # FastSpring REST API implementation
+├── webhook-handler.ts    # Webhook processing
+└── index.ts              # Export entry
 ```
 
-Webhook endpoints (`/api/payment/webhook/creem`, `/api/payment/webhook/paddle`) receive provider-specific payloads, normalize them through the webhook handler, and update the database.
+Webhook endpoint `/api/payment/webhook/fastspring` receives FastSpring payloads, verifies HMAC signature, normalizes data, and updates the database.
 
 ### LLM System (Abstraction Layer)
 
@@ -332,7 +332,7 @@ In development environments (`NODE_ENV=development`), the Dev Mode simulator (`l
 - **Account** - OAuth provider connections
 - **Session** - Active sessions
 - **VerificationToken** - Email/password reset tokens
-- **Subscription** - Payment subscriptions (Creem/Paddle)
+- **Subscription** - Payment subscriptions (FastSpring)
 - **AuditLog** - Compliance action logging (17 action types)
 
 ### Enums
@@ -372,19 +372,22 @@ Test files are located in `__tests__/` and follow the pattern `*.test.{ts,tsx}`.
 
 ## Payment Setup
 
-### Creem
+### FastSpring
 
-1. Sign up at [Creem](https://creem.io/) and create a merchant account
-2. Generate an API Key from the dashboard
-3. Create a Product for each subscription tier (Starter, Professional, Business, Enterprise)
-4. Configure the webhook URL: `https://your-domain.com/api/payment/webhook/creem`
+1. Sign up at [FastSpring](https://fastspring.com/) and create a seller account
+2. Get your Store ID from the dashboard
+3. Generate API credentials (API Key + API Password) from Integrations → API Keys
+4. Create a Product for each subscription tier (Starter, Professional, Business, Enterprise)
+5. Configure the webhook URL: `https://your-domain.com/api/payment/webhook/fastspring`
+6. Get your Webhook Secret from Integrations → Webhooks
 
 ### Environment Variables
 
 ```bash
-PAYMENT_GATEWAY=creem
-CREEM_API_KEY=your-creem-api-key
-CREEM_WEBHOOK_SECRET=your-webhook-secret
+FASTSPRING_API_KEY=your-api-key
+FASTSPRING_API_PASSWORD=your-api-password
+FASTSPRING_STORE_ID=your-store-id
+FASTSPRING_WEBHOOK_SECRET=your-webhook-secret
 ```
 
 > **Dev Mode:** In development (`NODE_ENV=development`), the Dev Mode simulator bypasses real payment processing. Use the `DevSubscriptionSimulator` component in the dashboard to test subscription flows without a payment provider.

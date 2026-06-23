@@ -45,7 +45,7 @@ export async function simulateSubscription(tier: SimTier): Promise<{ success: bo
         gatewayCustomerId: `dev_cus_${session.user.id}`,
         gatewayProductId: `dev_pro_${tier}`,
         gatewayOrderId: `dev_ord_${Date.now()}`,
-        gateway: "creem",
+        gateway: "fastspring",
         currentPeriodStart: new Date(),
         currentPeriodEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
       },

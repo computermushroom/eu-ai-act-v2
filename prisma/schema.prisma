@@ -12,19 +12,6 @@ datasource db {
 }
 
 /**
- * Global Configuration model
- * Stores runtime-configurable settings (e.g. active payment gateway)
- * Single-row key-value store — no restart required for changes to take effect
- */
-model GlobalConfig {
-  configKey   String   @id @db.VarChar(64)
-  configValue String   @db.Text
-  updatedAt   DateTime @updatedAt
-
-  @@map("global_config")
-}
-
-/**
  * User account model
  * Minimal data collection per GDPR principles
  * Supports: account deletion, data export
@@ -129,13 +116,8 @@ model Subscription {
   gatewayProductId      String? // Product/plan ID from payment gateway
   gatewayOrderId        String? // Order/transaction ID from payment gateway
 
-  // Payment gateway type
-  gateway PaymentGateway?
-
-  // Payment provider that originated this subscription (immutable after creation)
-  // Tracks which gateway the customer originally subscribed through
-  // Values: "paddle" | "creem" — defaults to "paddle"
-  paymentProvider String @default("paddle") @db.VarChar(16)
+  // Payment gateway identifier (FastSpring)
+  gateway String? @db.VarChar(16)
 
   // Subscription details
   status SubscriptionStatus @default(inactive)
@@ -157,15 +139,6 @@ model Subscription {
   @@index([status])
   @@index([gateway])
   @@map("subscriptions")
-}
-
-/**
- * Payment gateway enum
- * Supported payment gateway providers
- */
-enum PaymentGateway {
-  creem
-  paddle
 }
 
 /**
@@ -756,4 +729,22 @@ model ClientAlert {
   @@index([isRead])
   @@index([severity])
   @@map("client_alerts")
+}
+
+// ============================================================
+// WEBHOOK EVENT DEDUPLICATION
+// ============================================================
+
+/**
+ * Processed Webhook Event model
+ * Tracks FastSpring webhook event IDs to ensure idempotent processing
+ * Prevents duplicate subscription updates from webhook retries
+ */
+model ProcessedWebhookEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique // FastSpring event ID
+  processedAt DateTime @default(now())
+
+  @@index([eventId])
+  @@map("processed_webhook_events")
 }

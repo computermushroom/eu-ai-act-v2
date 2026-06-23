@@ -78,7 +78,7 @@ export default function PrivacyPage() {
               assessments, and generated compliance documents that you create.
             </li>
             <li>
-              <strong>Payment Data:</strong> Processed by Creem (our
+              <strong>Payment Data:</strong> Processed by FastSpring (our
               payment processor). We do not store credit card numbers.
             </li>
             <li>
@@ -140,7 +140,7 @@ export default function PrivacyPage() {
           </p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              <strong>Creem:</strong> Payment processing and VAT
+              <strong>FastSpring:</strong> Payment processing and VAT
               handling.
             </li>
             <li>

@@ -103,11 +103,11 @@ export default function TermsPage() {
           <ul className="list-disc space-y-1 pl-5">
             <li>
               <strong>Billing:</strong> Subscriptions are billed in advance on a
-              monthly basis through our payment processor, Creem.
+              monthly basis through our payment processor, FastSpring.
             </li>
             <li>
               <strong>VAT:</strong> All prices are inclusive of applicable EU
-              VAT, which is automatically calculated and remitted by Creem.
+              VAT, which is automatically calculated and remitted by FastSpring.
             </li>
             <li>
               <strong>Renewal:</strong> Subscriptions automatically renew unless

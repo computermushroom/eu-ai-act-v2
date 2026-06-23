@@ -1,42 +1,20 @@
-// Payment Gateway Types
-// Unified type definitions for Paddle + Creem dual-gateway architecture
-// All gateways implement the same BasePaymentStrategy interface
-// Default primary gateway: Paddle; Backup: Creem
+// Payment Types - FastSpring Single Gateway
+// Defines all type contracts for the payment system
 
-/** Supported payment gateway identifiers */
-export type PaymentGatewayType = "paddle" | "creem";
-
-/** Subscription tier identifiers */
+/**
+ * Subscription tier names
+ * Aligned with pricing page and database enum
+ */
 export type PaymentTier = "starter" | "professional" | "business" | "enterprise";
 
-/** Billing cycle */
+/**
+ * Billing cycle options
+ */
 export type BillingCycle = "monthly" | "yearly";
 
-/** Standardized subscription status across all gateways */
-export type UnifiedSubscriptionStatus =
-  | "active"
-  | "cancelled"
-  | "expired"
-  | "inactive"
-  | "past_due"
-  | "paused"
-  | "unpaid";
-
-/** Standardized webhook event types */
-export type UnifiedWebhookEvent =
-  | "subscription_created"
-  | "subscription_updated"
-  | "subscription_cancelled"
-  | "subscription_resumed"
-  | "subscription_expired"
-  | "subscription_paused"
-  | "subscription_unpaused"
-  | "subscription_payment_success"
-  | "subscription_payment_failed"
-  | "subscription_payment_recovered"
-  | "subscription_refunded";
-
-/** Checkout session creation parameters */
+/**
+ * Checkout session parameters
+ */
 export interface CheckoutParams {
   tier: PaymentTier;
   billingCycle: BillingCycle;
@@ -45,71 +23,147 @@ export interface CheckoutParams {
   redirectUrl: string;
 }
 
-/** Checkout session result */
+/**
+ * Checkout session result
+ */
 export interface CheckoutResult {
-  /** URL to redirect user to for payment */
   checkoutUrl: string;
-  /** Gateway-specific session/checkout ID for tracking */
   sessionId: string;
 }
 
-/** Standardized subscription data from webhook */
-export interface UnifiedSubscriptionData {
-  /** Gateway identifier (paddle/creem) */
-  gateway: PaymentGatewayType;
-  /** Gateway-specific subscription ID */
-  gatewaySubscriptionId: string;
-  /** Gateway-specific customer ID */
-  gatewayCustomerId: string;
-  /** Gateway-specific product/plan ID */
-  gatewayProductId: string;
-  /** Gateway-specific order/transaction ID */
-  gatewayOrderId: string;
-  /** Customer email */
-  customerEmail: string;
-  /** Mapped subscription tier */
+/**
+ * Subscription data from payment gateway
+ */
+export interface SubscriptionData {
+  subscriptionId: string;
+  customerId: string;
+  productId: string;
+  orderId?: string;
+  status: SubscriptionStatus;
   tier: PaymentTier;
-  /** Mapped subscription status */
-  status: UnifiedSubscriptionStatus;
-  /** Current billing period start */
-  currentPeriodStart: Date;
-  /** Current billing period end */
-  currentPeriodEnd: Date | null;
-  /** Whether this is a test/sandbox transaction */
-  testMode: boolean;
-  /** Original raw webhook event name from gateway */
-  rawEvent: string;
-}
-
-/** Webhook verification result */
-export interface WebhookVerifyResult {
-  valid: boolean;
-  event: UnifiedWebhookEvent;
-  data: UnifiedSubscriptionData;
-}
-
-/** Payment provider info for frontend SDK loading */
-export interface PaymentProviderInfo {
-  /** Active gateway identifier */
-  activeGateway: PaymentGatewayType;
-  /** Whether the active gateway is properly configured */
-  isConfigured: boolean;
+  currentPeriodStart?: Date;
+  currentPeriodEnd?: Date;
 }
 
 /**
- * Abstract base payment strategy interface
- * All gateway implementations (Paddle, Creem) must implement this interface
+ * Subscription status (matches Prisma enum)
  */
-export interface BasePaymentStrategy {
-  /** Gateway identifier */
-  readonly gateway: PaymentGatewayType;
+export type SubscriptionStatus =
+  | "active"
+  | "cancelled"
+  | "expired"
+  | "inactive"
+  | "past_due"
+  | "paused"
+  | "unpaid";
 
-  /** Whether this gateway is configured with required credentials */
-  readonly isConfigured: boolean;
+/**
+ * FastSpring webhook event types
+ * Reference: https://developer.fastspring.com/reference/webhooks
+ */
+export type FastSpringEventType =
+  | "order.completed"
+  | "subscription.activated"
+  | "subscription.updated"
+  | "subscription.canceled"
+  | "subscription.deactivated"
+  | "subscription.payment.overdue"
+  | "return.created";
 
-  /** Create a checkout session */
-  createCheckout(params: CheckoutParams): Promise<CheckoutResult>;
-
-  /** Verify webhook signature and parse payload */
-  verifyWebhook(rawBody: string, headers: Headers): Promise<WebhookVerifyResult>;
+/**
+ * FastSpring webhook payload
+ */
+export interface FastSpringWebhookPayload {
+  events: FastSpringEvent[];
 }
+
+/**
+ * Individual FastSpring event
+ */
+export interface FastSpringEvent {
+  id: string;
+  type: FastSpringEventType;
+  created: number; // Unix timestamp
+  data: FastSpringEventData;
+}
+
+/**
+ * FastSpring event data (order or subscription)
+ */
+export interface FastSpringEventData {
+  order?: FastSpringOrder;
+  subscription?: FastSpringSubscription;
+  return?: FastSpringReturn;
+}
+
+/**
+ * FastSpring order object
+ */
+export interface FastSpringOrder {
+  id: string;
+  reference: string;
+  account: string; // Customer ID
+  total: number;
+  currency: string;
+  items: FastSpringOrderItem[];
+}
+
+/**
+ * FastSpring order item
+ */
+export interface FastSpringOrderItem {
+  product: string; // Product path/ID
+  quantity: number;
+  price: number;
+  subscription?: string; // Subscription ID if recurring
+}
+
+/**
+ * FastSpring subscription object
+ */
+export interface FastSpringSubscription {
+  id: string;
+  subscription: string; // Subscription display ID
+  account: string; // Customer ID
+  product: string; // Product path
+  quantity: number;
+  status: string; // active, canceled, deactivated, etc.
+  begin: number; // Unix timestamp
+  nextChargeDate: number; // Unix timestamp
+  end?: number; // Unix timestamp (for cancelled)
+}
+
+/**
+ * FastSpring return/refund object
+ */
+export interface FastSpringReturn {
+  id: string;
+  order: string;
+  account: string;
+  total: number;
+  currency: string;
+}
+
+/**
+ * Tier to FastSpring product path mapping
+ * Configure these in your FastSpring dashboard
+ */
+export const TIER_PRODUCT_MAP: Record<PaymentTier, string> = {
+  starter: "starter-plan",
+  professional: "professional-plan",
+  business: "business-plan",
+  enterprise: "enterprise-plan",
+};
+
+/**
+ * FastSpring subscription status to our status mapping
+ */
+export const FASTSPRING_STATUS_MAP: Record<string, SubscriptionStatus> = {
+  active: "active",
+  canceled: "cancelled",
+  cancelled: "cancelled",
+  deactivated: "expired",
+  past_due: "past_due",
+  paused: "paused",
+  unpaid: "unpaid",
+};
